@@ -824,7 +824,20 @@ export default function CollabCelestia() {
   });
 
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
-  const dayItems   = (d) => allItems.filter(i => i.date === d);
+  const dayItems   = (d) => {
+    const items = allItems.filter(i => i.date === d);
+    // Also include events (no deliverables) that fall on this date
+    collabs.forEach(c => {
+      if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
+        const start = c.startDate;
+        const end = c.endDate || c.startDate;
+        if (d >= start && d <= end) {
+          items.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
+        }
+      }
+    });
+    return items;
+  };
   const toggleBlk  = (d) => setBlackout(p => p.includes(d) ? p.filter(x => x!==d) : [...p, d]);
   const toggleOffDay = async (d) => {
     const isRemoving = offDays.includes(d);
@@ -1626,7 +1639,7 @@ export default function CollabCelestia() {
                       <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
                         {chips.map(g => { const bp = brandHash(g.brand); return (
                           <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap" }}>
-                            {DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                            {g.isEventChip ? "◎" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                           </div>
                         );})}
                         {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
@@ -1688,7 +1701,7 @@ export default function CollabCelestia() {
                                 onDragStart={e=>{ e.stopPropagation(); setDragItem({ collabId:g.collabId, itemId:g.itemId, brand:g.brand, type:g.type }); e.dataTransfer.effectAllowed="move"; }}
                                 onDragEnd={()=>{ setDragItem(null); setDragOver(null); }}
                                 style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : 1, transition:"opacity .15s" }}>
-                                {DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                                {g.isEventChip ? "◎" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                               </div>
                             );})}
                             {chips.length>3&&<div style={{ fontSize:9, color:C.tan, fontFamily:"'Cormorant Garamond', serif" }}>+{chips.length-3}</div>}
@@ -2448,11 +2461,12 @@ export default function CollabCelestia() {
                       Set a start and end date above first.
                     </div>
                   );
-                  if (activeDelivs.length===0) return (
+                  if (activeDelivs.length===0 && formType!=="event") return (
                     <div style={{ padding:"12px 16px", background:C.sand, borderRadius:14, fontSize:13, color:C.tan, fontStyle:"italic", border:`1px solid ${C.beige}` }}>
                       Add at least one deliverable above first.
                     </div>
                   );
+                  if (activeDelivs.length===0 && formType==="event") return null;
                   const allDates = [];
                   const cur = new Date(form.startDate+"T12:00:00");
                   const end = new Date(endDate+"T12:00:00");
