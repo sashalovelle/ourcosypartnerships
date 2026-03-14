@@ -1318,7 +1318,8 @@ export default function CollabCelestia() {
     const deliverables = Object.keys(DELIVERABLE_CONFIG).map(type => ({
       type, count: c.items?.filter(i=>i.type===type).length||0
     }));
-    setForm({ brand: c.brand, startDate: "", endDate: "", notes: c.notes||"", fee: c.fee||"", paymentStatus: "Unpaid", gifted: c.gifted||false, brief: c.brief||"", deliverables });
+    setFormType(c.collabType === 'event' ? 'event' : 'partnership');
+    setForm({ brand: c.brand, startDate: "", endDate: "", notes: c.notes||"", fee: c.fee||"", paymentStatus: "Unpaid", gifted: c.gifted||false, brief: c.brief||"", location: c.location||"", startTime: c.startTime||"", endTime: c.endTime||"", deliverables });
     setShowModal(true);
   }
 
