@@ -1604,7 +1604,7 @@ export default function CollabCelestia() {
               </div>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
                 {Array.from({length:firstDay}).map((_,i)=>(
-                  <div key={`e${i}`} style={{ minHeight:88, borderRight:`1px solid ${C.beige}`, borderBottom:`1px solid ${C.beige}`, background:`${C.sand}28` }}/>
+                  <div key={`e${i}`} style={{ minHeight:isMobile?56:88, borderRight:`1px solid ${C.beige}`, borderBottom:`1px solid ${C.beige}`, background:`${C.sand}28` }}/>
                 ))}
                 {Array.from({length:daysInMonth}).map((_,i)=>{
                   const day     = i+1;
@@ -1620,7 +1620,7 @@ export default function CollabCelestia() {
                       onDragOver={e=>{ e.preventDefault(); setDragOver(dateStr); }}
                       onDragLeave={()=>setDragOver(null)}
                       onDrop={e=>{ e.preventDefault(); setDragOver(null); if(dragItem){ moveItemToDate(dragItem.collabId, dragItem.itemId, dateStr); setDragItem(null); } }}
-                      style={{ minHeight:88, padding:"8px 6px", borderRight:`1px solid ${C.beige}`, borderBottom:`1px solid ${C.beige}`, background:dragOver===dateStr?`${C.goldLight}30`:isBlk?`${C.beige}70`:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:"transparent", cursor:"pointer", transition:"background .15s", outline: dragOver===dateStr?`2px dashed ${C.gold}`:"none" }}>
+                      style={{ minHeight:isMobile?56:88, padding:isMobile?"4px 3px":"8px 6px", borderRight:`1px solid ${C.beige}`, borderBottom:`1px solid ${C.beige}`, background:dragOver===dateStr?`${C.goldLight}30`:isBlk?`${C.beige}70`:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:"transparent", cursor:"pointer", transition:"background .15s", outline: dragOver===dateStr?`2px dashed ${C.gold}`:"none" }}>
                       <div style={{ display:"flex", justifyContent:"space-between", marginBottom:4 }}>
                         <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, fontWeight:isToday?600:400, color:isToday?C.cream:isBlk?C.tan:C.brown,
                           ...(isToday?{background:C.gold,borderRadius:"50%",width:20,height:20,display:"inline-flex",alignItems:"center",justifyContent:"center",fontSize:9}:{}) }}>
@@ -1645,7 +1645,7 @@ export default function CollabCelestia() {
                                 draggable
                                 onDragStart={e=>{ e.stopPropagation(); setDragItem({ collabId:g.collabId, itemId:g.itemId, brand:g.brand, type:g.type }); e.dataTransfer.effectAllowed="move"; }}
                                 onDragEnd={()=>{ setDragItem(null); setDragOver(null); }}
-                                style={{ fontSize:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : 1, transition:"opacity .15s" }}>
+                                style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : 1, transition:"opacity .15s" }}>
                                 {DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                               </div>
                             );})}
@@ -2093,10 +2093,10 @@ export default function CollabCelestia() {
                   {!editForm.gifted && <input type="number" min="0" step="any" value={editForm.fee||""} onChange={e=>setEditForm(p=>({...p,fee:e.target.value}))} placeholder="e.g. 500" style={{...inp, flex:1}}/>}
                   <button onClick={()=>setEditForm(p=>({...p,gifted:!p.gifted,fee:p.gifted?p.fee:""}))} className="cb"
                     style={{ padding:"7px 14px", borderRadius:10, fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1, background:editForm.gifted?C.sand:C.cream, color:editForm.gifted?C.amber:C.tan, border:`1.5px solid ${editForm.gifted?C.gold:C.beige}`, transition:"all .2s", whiteSpace:"nowrap" }}>
-                    {editForm.gifted ? "✦ GIFTED" : "GIFTED"}
+                    {editForm.gifted ? "✦ PRODUCT EXCHANGE" : "PRODUCT EXCHANGE"}
                   </button>
                 </div>
-                {editForm.gifted && <div style={{ fontSize:12, color:C.tan, fontStyle:"italic", marginTop:6 }}>Marked as gifted — no payment will be tracked.</div>}
+                {editForm.gifted && <div style={{ fontSize:12, color:C.tan, fontStyle:"italic", marginTop:6 }}>Marked as product exchange — no payment will be tracked.</div>}
               </div>
               <div>
                 <label style={lbl}>PAYMENT STATUS</label>
@@ -2222,10 +2222,10 @@ export default function CollabCelestia() {
                     <label style={lbl}>TIME (OPTIONAL)</label>
                     <div style={{ display:"flex", gap:10, alignItems:"center" }}>
                       <input type="time" value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))}
-                        style={{...inp, flex:1, padding:"10px 12px"}}/>
+                        style={{...inp, flex:1, padding:"10px 12px", color:form.startTime?C.ink:C.tan, colorScheme:"light"}}/>
                       <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
                       <input type="time" value={form.endTime||""} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))}
-                        style={{...inp, flex:1, padding:"10px 12px"}}/>
+                        style={{...inp, flex:1, padding:"10px 12px", color:form.endTime?C.ink:C.tan, colorScheme:"light"}}/>
                     </div>
                   </div>
                 )}
