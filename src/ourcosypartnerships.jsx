@@ -1053,12 +1053,18 @@ export default function CollabCelestia() {
         location: collab.location || '',
         extendedProperties: { private: { collabId: collab.id, type: 'event' } }
       };
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
       if (hasTime) {
-        eventBody.start = { dateTime: `${collab.startDate}T${collab.startTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
-        eventBody.end   = { dateTime: `${collab.endDate || collab.startDate}T${collab.endTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+        eventBody.start = { dateTime: `${collab.startDate}T${collab.startTime}:00`, timeZone: tz };
+        eventBody.end   = { dateTime: `${collab.endDate || collab.startDate}T${collab.endTime}:00`, timeZone: tz };
       } else {
+        // For all-day events Google needs end date to be the day after
+        const endDate = collab.endDate || collab.startDate;
+        const nextDay = new Date(endDate + 'T12:00:00');
+        nextDay.setDate(nextDay.getDate() + 1);
+        const nextDayStr = nextDay.toISOString().split('T')[0];
         eventBody.start = { date: collab.startDate };
-        eventBody.end   = { date: collab.endDate || collab.startDate };
+        eventBody.end   = { date: nextDayStr };
       }
       await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events`, {
         method: 'POST',
