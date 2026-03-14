@@ -1639,7 +1639,7 @@ export default function CollabCelestia() {
                       <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
                         {chips.map(g => { const bp = brandHash(g.brand); return (
                           <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap" }}>
-                            {g.isEventChip ? "Ev" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                            {g.isEventChip ? "♦" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                           </div>
                         );})}
                         {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
@@ -1701,7 +1701,7 @@ export default function CollabCelestia() {
                                 onDragStart={e=>{ e.stopPropagation(); setDragItem({ collabId:g.collabId, itemId:g.itemId, brand:g.brand, type:g.type }); e.dataTransfer.effectAllowed="move"; }}
                                 onDragEnd={()=>{ setDragItem(null); setDragOver(null); }}
                                 style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : 1, transition:"opacity .15s" }}>
-                                {g.isEventChip ? "Ev" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                                {g.isEventChip ? "♦" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                               </div>
                             );})}
                             {chips.length>3&&<div style={{ fontSize:9, color:C.tan, fontFamily:"'Cormorant Garamond', serif" }}>+{chips.length-3}</div>}
