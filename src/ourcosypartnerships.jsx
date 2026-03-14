@@ -959,16 +959,17 @@ export default function CollabCelestia() {
     if (!token) return;
     const listId = await getOrCreateTaskList(token);
     const items = collab.items || [];
-    // Group items by date + type to stack them
+    // Group items by date + brand (one task per brand per day)
     const grouped = {};
     items.forEach(item => {
-      const key = `${item.date}||${item.type}`;
-      if (!grouped[key]) grouped[key] = { date: item.date, type: item.type, count: 0, ids: [] };
-      grouped[key].count++;
+      const key = item.date;
+      if (!grouped[key]) grouped[key] = { date: item.date, types: {}, ids: [] };
+      grouped[key].types[item.type] = (grouped[key].types[item.type] || 0) + 1;
       grouped[key].ids.push(item.id);
     });
     for (const group of Object.values(grouped)) {
-      const title = group.count > 1 ? `${collab.brand} • ${group.type} x${group.count}` : `${collab.brand} • ${group.type}`;
+      const parts = Object.entries(group.types).map(([type, count]) => count > 1 ? `${type} x${count}` : type);
+      const title = `${collab.brand} • ${parts.join(' + ')}`;
       const due = new Date(group.date + 'T00:00:00.000Z').toISOString();
       try {
         await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
