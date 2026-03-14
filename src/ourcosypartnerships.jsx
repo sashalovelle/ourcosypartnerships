@@ -1596,7 +1596,49 @@ export default function CollabCelestia() {
               </div>
             )}
 
-            <div style={{ background:`${C.cream}F0`, borderRadius:22, border:`1px solid ${C.beige}`, boxShadow:"0 8px 40px rgba(0,0,0,.06)", overflowX:"hidden" }}>
+            {/* ── Mobile list view ── */}
+            {isMobile && (
+              <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                {Array.from({length:daysInMonth}).map((_,i) => {
+                  const day = i+1;
+                  const dateStr = `${calYear}-${String(calMonth+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+                  const isToday = dateStr===todayStr;
+                  const isOff = offDays.includes(dateStr);
+                  const isSel = selectedDay===dateStr;
+                  const items = dayItems(dateStr);
+                  const groups = {};
+                  items.forEach(item => {
+                    const key = item.brand+"||"+item.type;
+                    if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, collabId:item.collabId, itemId:item.id };
+                    groups[key].count++;
+                  });
+                  const chips = Object.values(groups);
+                  const dayLabel = new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",day:"numeric"});
+                  return (
+                    <div key={day} onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }}
+                      style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderRadius:14, background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, cursor:"pointer", transition:"background .15s" }}>
+                      <div style={{ minWidth:52, flexShrink:0 }}>
+                        <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
+                          ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
+                          {dayLabel}
+                        </span>
+                      </div>
+                      <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
+                        {chips.map(g => { const bp = brandHash(g.brand); return (
+                          <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap" }}>
+                            {DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                          </div>
+                        );})}
+                        {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* ── Desktop grid view ── */}
+            {!isMobile && <div style={{ background:`${C.cream}F0`, borderRadius:22, border:`1px solid ${C.beige}`, boxShadow:"0 8px 40px rgba(0,0,0,.06)", overflowX:"hidden" }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", background:C.sand, borderBottom:`1px solid ${C.beige}` }}>
                 {DAYS_SHORT.map(d=>(
                   <div key={d} style={{ padding:"12px 8px", textAlign:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.amber }}>{d}</div>
@@ -1657,7 +1699,7 @@ export default function CollabCelestia() {
                   );
                 })}
               </div>
-            </div>
+            </div>}
 
             {/* Day detail */}
             {selectedDay && (()=>{
