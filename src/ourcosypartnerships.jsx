@@ -2354,7 +2354,7 @@ export default function CollabCelestia() {
                                 return (
                                   <div key={day} style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
                                     <button onClick={()=>toggleDate(ds)}
-                                      style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",boxShadow:isSelected?`inset 0 0 0 2px ${C.amber}`:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:isSelected?600:400,outline:"none",transition:"all .1s",boxSizing:"border-box" }}>
+                                      style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",boxShadow:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:400,outline:"none",transition:"all .1s",boxSizing:"border-box" }}>
                                       {day}
                                     </button>
                                     {isSelected && (
