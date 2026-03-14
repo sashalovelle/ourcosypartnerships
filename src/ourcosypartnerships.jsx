@@ -1028,17 +1028,24 @@ export default function CollabCelestia() {
   async function createCalendarEvent(collab, token) {
     if (!token) return;
     try {
+      const hasTime = collab.startTime && collab.endTime;
+      const eventBody = {
+        summary: collab.brand,
+        description: collab.notes || '',
+        location: collab.location || '',
+        extendedProperties: { private: { collabId: collab.id, type: 'event' } }
+      };
+      if (hasTime) {
+        eventBody.start = { dateTime: `${collab.startDate}T${collab.startTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+        eventBody.end   = { dateTime: `${collab.endDate || collab.startDate}T${collab.endTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+      } else {
+        eventBody.start = { date: collab.startDate };
+        eventBody.end   = { date: collab.endDate || collab.startDate };
+      }
       await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          summary: collab.brand,
-          description: collab.notes || '',
-          start: { date: collab.startDate },
-          end: { date: collab.endDate || collab.startDate },
-          location: collab.location || '',
-          extendedProperties: { private: { collabId: collab.id, type: 'event' } }
-        })
+        body: JSON.stringify(eventBody)
       });
     } catch {}
   }
@@ -1061,7 +1068,7 @@ export default function CollabCelestia() {
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'event' };
       setCollabs(p => [...p, newCollab]);
       if (gcalToken) {
-        createCalendarEvent({ ...newCollab, startDate: form.startDate, endDate: endDate || form.startDate }, gcalToken);
+        createCalendarEvent({ ...newCollab, startDate: form.startDate, endDate: endDate || form.startDate, startTime: form.startTime||'', endTime: form.endTime||'' }, gcalToken);
         if (items.length > 0) createGcalEvents(newCollab, gcalToken);
       }
       resetForm(); setManualSchedule({}); setFormType('partnership'); setShowModal(false); setView('overview');
@@ -1243,9 +1250,14 @@ export default function CollabCelestia() {
               headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 summary: editForm.brand,
-                start: { date: editForm.startDate },
-                end: { date: editForm.endDate || editForm.startDate },
-                location: editForm.location || ''
+                location: editForm.location || '',
+                ...(editForm.startTime && editForm.endTime ? {
+                  start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
+                  end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+                } : {
+                  start: { date: editForm.startDate },
+                  end:   { date: editForm.endDate || editForm.startDate }
+                })
               })
             });
           }
@@ -2201,6 +2213,20 @@ export default function CollabCelestia() {
                   <div>
                     <label style={lbl}>LOCATION (OPTIONAL)</label>
                     <input value={form.location||""} onChange={e=>setForm(p=>({...p,location:e.target.value}))} placeholder="e.g. Raffles Hotel, Singapore" style={inp}/>
+                  </div>
+                )}
+
+                {/* Time — events only */}
+                {formType==="event" && (
+                  <div>
+                    <label style={lbl}>TIME (OPTIONAL)</label>
+                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                      <input type="time" value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))}
+                        style={{...inp, flex:1, padding:"10px 12px"}}/>
+                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
+                      <input type="time" value={form.endTime||""} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))}
+                        style={{...inp, flex:1, padding:"10px 12px"}}/>
+                    </div>
                   </div>
                 )}
 
