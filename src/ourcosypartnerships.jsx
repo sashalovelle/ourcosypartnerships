@@ -1229,7 +1229,7 @@ export default function CollabCelestia() {
     const deliverables = Object.keys(DELIVERABLE_CONFIG).map(type => ({
       type, count: c.items?.filter(i=>i.type===type).length||0, maxPerDay: 0
     }));
-    setEditForm({ brand: c.brand, startDate: c.startDate, endDate: c.endDate, singleDay: c.singleDay||false, notes: c.notes||"", fee: c.fee||"", feeBreakdown: c.feeBreakdown||{cash:"",storeCredit:"",voucher:""}, paymentStatus: c.paymentStatus||"Unpaid", gifted: c.gifted||false, brief: c.brief||"", paymentDue: c.paymentDue||"", deadline: c.deadline||"", links: c.links||{}, deliverables });
+    setEditForm({ brand: c.brand, startDate: c.startDate, endDate: c.endDate, singleDay: c.singleDay||false, notes: c.notes||"", fee: c.fee||"", feeBreakdown: c.feeBreakdown||{cash:"",storeCredit:"",voucher:""}, paymentStatus: c.paymentStatus||"Unpaid", gifted: c.gifted||false, brief: c.brief||"", paymentDue: c.paymentDue||"", deadline: c.deadline||"", links: c.links||{}, location: c.location||"", startTime: c.startTime||"", endTime: c.endTime||"", deliverables });
     setEditingCollab(c);
   }
 
@@ -2109,6 +2109,24 @@ export default function CollabCelestia() {
                 <label style={lbl}>BRAND NAME</label>
                 <input value={editForm.brand} onChange={e=>setEditForm(p=>({...p,brand:e.target.value}))} style={inp}/>
               </div>
+              {editingCollab?.collabType==="event" && (
+                <div>
+                  <label style={lbl}>LOCATION (OPTIONAL)</label>
+                  <input value={editForm.location||""} onChange={e=>setEditForm(p=>({...p,location:e.target.value}))} placeholder="e.g. Raffles Hotel, Singapore" style={inp}/>
+                </div>
+              )}
+              {editingCollab?.collabType==="event" && (
+                <div>
+                  <label style={lbl}>TIME (OPTIONAL)</label>
+                  <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                    <input type="time" value={editForm.startTime||""} onChange={e=>setEditForm(p=>({...p,startTime:e.target.value}))}
+                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.startTime?C.ink:C.tan, colorScheme:"light"}}/>
+                    <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
+                    <input type="time" value={editForm.endTime||""} onChange={e=>setEditForm(p=>({...p,endTime:e.target.value}))}
+                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.endTime?C.ink:C.tan, colorScheme:"light"}}/>
+                  </div>
+                </div>
+              )}
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 {["startDate","endDate"].map(f=>(
                   <div key={f}>
