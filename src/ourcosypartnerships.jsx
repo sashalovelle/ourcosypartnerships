@@ -1101,12 +1101,35 @@ export default function CollabCelestia() {
       return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
     }));
   }
+  async function updateTaskDate(itemId, newDate, token) {
+    if (!token) return;
+    const listId = await getOrCreateTaskList(token);
+    try {
+      const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=true&showHidden=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.items) {
+        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`));
+        if (task) {
+          await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ due: new Date(newDate + 'T00:00:00.000Z').toISOString() })
+          });
+        }
+      }
+    } catch {}
+  }
+
   function nudge(cId, iId, delta) {
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => {
         if (i.id!==iId) return i;
         const d = new Date(i.date+"T12:00:00"); d.setDate(d.getDate()+delta);
-        return { ...i, date: d.toISOString().split("T")[0] };
+        const newDate = d.toISOString().split("T")[0];
+        if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
+        return { ...i, date: newDate };
       })
     }));
   }
@@ -1137,6 +1160,7 @@ export default function CollabCelestia() {
   }
   function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
+    if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, date: newDate })
     }));
@@ -1144,7 +1168,13 @@ export default function CollabCelestia() {
   function moveGroupToDate(cId, type, fromDate, newDate) {
     if (!newDate) return;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
-      ...c, items: c.items.map(i => i.type===type && i.date===fromDate ? { ...i, date: newDate } : i)
+      ...c, items: c.items.map(i => {
+        if (i.type===type && i.date===fromDate) {
+          if (gcalToken) updateTaskDate(i.id, newDate, gcalToken);
+          return { ...i, date: newDate };
+        }
+        return i;
+      })
     }));
   }
   function updateItemNote(cId, iId, note) {
@@ -1174,15 +1204,12 @@ export default function CollabCelestia() {
     setEditingCollab(c);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editForm || !editingCollab) return;
     const c = editingCollab;
     const newDelivs = editForm.deliverables.filter(d=>d.count>0);
-    // keep existing items that still fit, reschedule if dates changed
     const existingItems = c.items||[];
-    // rebuild items: keep statuses where type still exists, re-spread rest
     const newItems = autoSpread({ ...editForm, deliverables: newDelivs }, blackoutDates);
-    // try to preserve statuses for matching types
     const statusMap = {};
     existingItems.forEach((item,i) => { if (!statusMap[item.type]) statusMap[item.type]=[]; statusMap[item.type].push(item.status); });
     newItems.forEach(item => {
@@ -1190,23 +1217,62 @@ export default function CollabCelestia() {
       if (queue && queue.length) item.status = queue.shift();
     });
     setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: newItems, links: editForm.links||{} }));
+
+    // Sync to Google
+    if (gcalToken) {
+      // Update task dates for deliverables
+      newItems.forEach(item => {
+        const old = existingItems.find(i => i.id === item.id);
+        if (old && old.date !== item.date) updateTaskDate(item.id, item.date, gcalToken);
+      });
+      // If event type, update the Google Calendar event date too
+      if (c.collabType === 'event') {
+        try {
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?privateExtendedProperty=collabId%3D${c.id}`, {
+            headers: { Authorization: `Bearer ${gcalToken}` }
+          });
+          const data = await res.json();
+          if (data.items && data.items.length > 0) {
+            const ev = data.items[0];
+            await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+              method: 'PATCH',
+              headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                summary: editForm.brand,
+                start: { date: editForm.startDate },
+                end: { date: editForm.endDate || editForm.startDate },
+                location: editForm.location || ''
+              })
+            });
+          }
+        } catch {}
+      }
+    }
+
     setEditingCollab(null); setEditForm(null);
   }
 
   function markAllPosted(collabId, type, date) {
-    // mark all items of this brand+type on this date as Posted
     setCollabs(p => p.map(c => c.id!==collabId ? c : {
-      ...c, items: c.items.map(i =>
-        i.type===type && i.date===date ? { ...i, status:"Posted" } : i
-      )
+      ...c, items: c.items.map(i => {
+        if (i.type===type && i.date===date) {
+          if (gcalToken) updateGcalEventStatus(i.id, collabId, c.brand, type, "Posted", date, gcalToken);
+          return { ...i, status:"Posted" };
+        }
+        return i;
+      })
     }));
   }
 
   function markGroupStatus(collabId, type, date, status) {
     setCollabs(p => p.map(c => c.id!==collabId ? c : {
-      ...c, items: c.items.map(i =>
-        i.type===type && i.date===date ? { ...i, status } : i
-      )
+      ...c, items: c.items.map(i => {
+        if (i.type===type && i.date===date) {
+          if (gcalToken) updateGcalEventStatus(i.id, collabId, c.brand, type, status, date, gcalToken);
+          return { ...i, status };
+        }
+        return i;
+      })
     }));
   }
 
