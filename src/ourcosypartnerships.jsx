@@ -1971,9 +1971,9 @@ export default function CollabCelestia() {
       {/* ════ ADD PARTNER MODAL ════ */}
       {showModal&&(
         <div style={{ position:"fixed", inset:0, background:"rgba(42,31,14,.48)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, padding:20, backdropFilter:"blur(5px)" }}>
-          <div style={{ background:`linear-gradient(148deg,${C.cream},${C.fog})`, borderRadius:26, width:"100%", maxWidth:520, maxHeight:"90vh", boxShadow:"0 32px 80px rgba(0,0,0,.22)", border:`1px solid ${C.beige}`, display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          <div style={{ background:`linear-gradient(148deg,${C.cream},${C.fog})`, borderRadius:26, width:"100%", maxWidth:520, maxHeight:"90vh", boxShadow:"0 32px 80px rgba(0,0,0,.22)", border:`1px solid ${C.beige}`, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
             {/* Header */}
-            <div style={{ padding:"32px 38px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
+            <div style={{ padding:"24px 20px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
               <div>
                 <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:3, color:C.tan, marginBottom:7 }}>NEW PARTNERSHIP</div>
                 <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:26, fontWeight:300, color:C.darkBrown, letterSpacing:.4 }}>Add Partnership</h2>
@@ -1981,7 +1981,7 @@ export default function CollabCelestia() {
               <button onClick={()=>setShowModal(false)} style={{ fontSize:22, color:C.tan, width:36, height:36, borderRadius:10, background:C.sand, border:`1px solid ${C.beige}`, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
             </div>
             {/* Scrollable body */}
-            <div style={{ overflowY:"auto", padding:"0 38px 38px", flex:1 }}>
+            <div style={{ overflowY:"auto", padding:"0 20px 20px", flex:1 }}>
               <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
                 {/* Brand */}
@@ -2192,7 +2192,7 @@ export default function CollabCelestia() {
                       {Object.values(monthGroups).map(({year,month,dates})=>{
                         const fd=new Date(year,month,1).getDay(); const dim=new Date(year,month+1,0).getDate();
                         return (
-                          <div key={year+"-"+month} style={{ background:C.parchment, borderRadius:16, border:`1px solid ${C.beige}`, overflow:"hidden" }}>
+                          <div key={year+"-"+month} style={{ background:C.parchment, borderRadius:16, border:`1px solid ${C.beige}`, overflow:"hidden", width:"100%", boxSizing:"border-box" }}>
                             <div style={{ padding:"10px 14px", background:C.sand, borderBottom:`1px solid ${C.beige}` }}>
                               <span style={{ fontFamily:"'Cinzel', serif", fontSize:12, color:C.darkBrown, letterSpacing:.5 }}>{MONTHS[month]} {year}</span>
                             </div>
