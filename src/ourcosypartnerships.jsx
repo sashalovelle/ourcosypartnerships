@@ -2096,8 +2096,8 @@ export default function CollabCelestia() {
 
       {/* ════ ADD PARTNER MODAL ════ */}
       {showModal&&(
-        <div style={{ position:"fixed", inset:0, background:"rgba(42,31,14,.48)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:100, padding:20, backdropFilter:"blur(5px)" }}>
-          <div style={{ background:`linear-gradient(148deg,${C.cream},${C.fog})`, borderRadius:26, width:"100%", maxWidth:520, maxHeight:"90vh", boxShadow:"0 32px 80px rgba(0,0,0,.22)", border:`1px solid ${C.beige}`, display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+        <div style={{ position:"fixed", inset:0, background:"rgba(42,31,14,.48)", display:"flex", alignItems:"flex-start", justifyContent:"center", zIndex:100, padding:"40px 20px 20px", backdropFilter:"blur(5px)", overflowY:"auto" }}>
+          <div style={{ background:`linear-gradient(148deg,${C.cream},${C.fog})`, borderRadius:26, width:"min(520px, calc(100vw - 40px))", maxHeight:"90vh", boxShadow:"0 32px 80px rgba(0,0,0,.22)", border:`1px solid ${C.beige}`, display:"flex", flexDirection:"column", overflow:"hidden", flexShrink:0 }}>
             {/* Header */}
             <div style={{ padding:"24px 20px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
               <div>
@@ -2107,7 +2107,7 @@ export default function CollabCelestia() {
               <button onClick={()=>setShowModal(false)} style={{ fontSize:22, color:C.tan, width:36, height:36, borderRadius:10, background:C.sand, border:`1px solid ${C.beige}`, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
             </div>
             {/* Scrollable body */}
-            <div style={{ overflowY:"auto", padding:"0 20px 20px", flex:1 }}>
+            <div style={{ overflowY:"auto", padding:"0 20px 20px", flex:1, overflowX:"hidden" }}>
               <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
                 {/* Type toggle */}
@@ -2327,7 +2327,7 @@ export default function CollabCelestia() {
                   function toggleDate(ds){ setManualSchedule(p=>{ const next={...p}; if(next[ds]){ delete next[ds]; } else { const defaults={}; activeDelivs.forEach(d=>{ defaults[d.type]=1; }); next[ds]=defaults; } return next; }); }
                   function setDayCount(ds,type,delta){ setManualSchedule(p=>{ const day={...(p[ds]||{})}; day[type]=Math.max(0,(day[type]||0)+delta); return {...p,[ds]:day}; }); }
                   return (
-                    <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
+                    <div style={{ display:"flex", flexDirection:"column", gap:14, contain:"none" }}>
                       {/* Per-type progress pills */}
                       <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                         {activeDelivs.map(d=>{ const dc=DELIVERABLE_CONFIG[d.type]; const assigned=totalByType[d.type]||0; const ok=assigned===d.count; return (<div key={d.type} style={{ display:"flex",alignItems:"center",gap:6,padding:"5px 12px",borderRadius:20,background:dc.color,border:`1px solid ${ok?C.gold:C.beige}` }}><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:10,color:C.amber }}>{dc.symbol}</span><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:10,color:C.brown }}>{d.type}</span><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:10,color:ok?C.amber:C.tan }}>{assigned}/{d.count}</span>{ok&&<span style={{ fontSize:9,color:C.amber }}>✦</span>}</div>); })}
