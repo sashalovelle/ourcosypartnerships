@@ -2418,8 +2418,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>
 
-                {/* Scheduling mode */}
-                <div>
+                {/* Scheduling mode — only show if has deliverables or is partnership */}
+                {(formType==="partnership" || form.deliverables.some(d=>d.count>0)) && <div>
                   <label style={lbl}>SCHEDULING MODE</label>
                   <div style={{ display:"flex", gap:8 }}>
                     {[["manual","◈ Manual"],["ai","✦ AI Schedule"]].map(([mode,label])=>(
@@ -2429,7 +2429,7 @@ export default function CollabCelestia() {
                       </button>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* AI hint */}
                 {scheduleMode==="ai" && (
@@ -2534,7 +2534,7 @@ export default function CollabCelestia() {
                 ) : (()=>{
                   const totalNeeded=form.deliverables.filter(d=>d.count>0).reduce((s,d)=>s+d.count,0);
                   const totalAssigned=Object.values(manualSchedule).reduce((s,dayMap)=>s+Object.values(dayMap).reduce((a,b)=>a+b,0),0);
-                  const ready=form.brand&&totalAssigned>0;
+                  const ready=form.brand&&(formType==="event"?true:totalAssigned>0);
                   return (
                     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                       {totalNeeded>0&&totalAssigned<totalNeeded&&(
