@@ -2121,18 +2121,6 @@ export default function CollabCelestia() {
                   <input value={editForm.location||""} onChange={e=>setEditForm(p=>({...p,location:e.target.value}))} placeholder="e.g. Raffles Hotel, Singapore" style={inp}/>
                 </div>
               )}
-              {editingCollab?.collabType==="event" && (
-                <div>
-                  <label style={lbl}>TIME (OPTIONAL)</label>
-                  <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                    <input type="time" value={editForm.startTime||""} onChange={e=>setEditForm(p=>({...p,startTime:e.target.value}))}
-                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.startTime?C.ink:C.tan, colorScheme:"light"}}/>
-                    <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
-                    <input type="time" value={editForm.endTime||""} onChange={e=>setEditForm(p=>({...p,endTime:e.target.value}))}
-                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.endTime?C.ink:C.tan, colorScheme:"light"}}/>
-                  </div>
-                </div>
-              )}
               <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                 {["startDate","endDate"].map(f=>(
                   <div key={f}>
@@ -2145,6 +2133,18 @@ export default function CollabCelestia() {
                   <DatePicker value={editForm.deadline||""} onChange={v=>setEditForm(p=>({...p,deadline:v}))} placeholder="When must all content be delivered?" direction="down"/>
                 </div>
               </div>
+              {editingCollab?.collabType==="event" && (
+                <div>
+                  <label style={lbl}>TIME (OPTIONAL)</label>
+                  <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                    <input type="time" value={editForm.startTime||""} onChange={e=>setEditForm(p=>({...p,startTime:e.target.value}))}
+                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.startTime?C.ink:C.tan, colorScheme:"light"}}/>
+                    <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
+                    <input type="time" value={editForm.endTime||""} onChange={e=>setEditForm(p=>({...p,endTime:e.target.value}))}
+                      style={{...inp, flex:1, padding:"10px 12px", color:editForm.endTime?C.ink:C.tan, colorScheme:"light"}}/>
+                  </div>
+                </div>
+              )}
               <div>
                 <label style={lbl}>DELIVERABLES</label>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
@@ -2301,20 +2301,6 @@ export default function CollabCelestia() {
                   </div>
                 )}
 
-                {/* Time — events only */}
-                {formType==="event" && (
-                  <div>
-                    <label style={lbl}>TIME (OPTIONAL)</label>
-                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
-                      <input type="time" value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))}
-                        style={{...inp, flex:1, padding:"10px 12px", color:form.startTime?C.ink:C.tan, colorScheme:"light"}}/>
-                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
-                      <input type="time" value={form.endTime||""} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))}
-                        style={{...inp, flex:1, padding:"10px 12px", color:form.endTime?C.ink:C.tan, colorScheme:"light"}}/>
-                    </div>
-                  </div>
-                )}
-
                 {/* Dates */}
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
                   <div>
@@ -2347,6 +2333,20 @@ export default function CollabCelestia() {
                     </div>
                   </div>
                 </div>
+
+                {/* Time — events only */}
+                {formType==="event" && (
+                  <div>
+                    <label style={lbl}>TIME (OPTIONAL)</label>
+                    <div style={{ display:"flex", gap:10, alignItems:"center" }}>
+                      <input type="time" value={form.startTime||""} onChange={e=>setForm(p=>({...p,startTime:e.target.value}))}
+                        style={{...inp, flex:1, padding:"10px 12px", color:form.startTime?C.ink:C.tan, colorScheme:"light"}}/>
+                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.tan }}>to</span>
+                      <input type="time" value={form.endTime||""} onChange={e=>setForm(p=>({...p,endTime:e.target.value}))}
+                        style={{...inp, flex:1, padding:"10px 12px", color:form.endTime?C.ink:C.tan, colorScheme:"light"}}/>
+                    </div>
+                  </div>
+                )}
 
                 {/* Deliverables */}
                 <div>
