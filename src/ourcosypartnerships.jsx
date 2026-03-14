@@ -2226,7 +2226,7 @@ export default function CollabCelestia() {
                       {(()=>{ const fb=form.feeBreakdown||{}; const parts=[]; if(fb.cash&&parseFloat(fb.cash)>0) parts.push(`$${parseFloat(fb.cash).toLocaleString()} cash`); if(fb.storeCredit&&parseFloat(fb.storeCredit)>0) parts.push(`$${parseFloat(fb.storeCredit).toLocaleString()} store credit`); if(fb.voucher&&parseFloat(fb.voucher)>0) parts.push(`$${parseFloat(fb.voucher).toLocaleString()} vouchers`); const total=parts.length>0?[fb.cash,fb.storeCredit,fb.voucher].filter(Boolean).reduce((s,v)=>s+parseFloat(v||0),0):0; return parts.length>0?(<div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:C.sand,borderRadius:10,border:`1px solid ${C.beige}` }}><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:10,color:C.tan }}>{parts.join(" + ")}</span><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:12,color:C.amber,fontWeight:500 }}>= ${total.toLocaleString()}</span></div>):null; })()}
                     </div>
                   )}
-                </div>
+                </div>}
 
                 {/* Payment status — partnerships only */}
                 {formType==="partnership" && <div>
@@ -2237,7 +2237,7 @@ export default function CollabCelestia() {
                       return (<button key={s} onClick={()=>setForm(p=>({...p,paymentStatus:s}))} className="cb" style={{ flex:1,padding:"9px 6px",borderRadius:12,fontFamily:"'Cormorant Garamond', serif",fontSize:10,letterSpacing:.5,background:active?ps.bg:C.sand,color:active?ps.text:C.tan,border:`1.5px solid ${active?ps.border:C.beige}`,transition:"all .2s" }}>{s}</button>);
                     })}
                   </div>
-                </div>
+                </div>}
 
                 {/* Payment due — partnerships only */}
                 {formType==="partnership" && !form.gifted && (
