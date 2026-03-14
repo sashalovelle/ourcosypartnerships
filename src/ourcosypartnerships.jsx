@@ -689,6 +689,7 @@ export default function CollabCelestia() {
   const [payMonth, setPayMonth]       = useState(today.getMonth());
   const [payYear, setPayYear]         = useState(today.getFullYear());
   const [scheduleMode, setScheduleMode] = useState("manual");
+  const [formType, setFormType] = useState("partnership"); // "partnership" or "event"
   const [manualSchedule, setManualSchedule] = useState({});
   const [gcalToken, setGcalToken]       = useState(() => localStorage.getItem('ocd-gcal-token') || null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
@@ -825,7 +826,43 @@ export default function CollabCelestia() {
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
   const dayItems   = (d) => allItems.filter(i => i.date === d);
   const toggleBlk  = (d) => setBlackout(p => p.includes(d) ? p.filter(x => x!==d) : [...p, d]);
-  const toggleOffDay = (d) => setOffDays(p => p.includes(d) ? p.filter(x => x!==d) : [...p, d]);
+  const toggleOffDay = async (d) => {
+    const isRemoving = offDays.includes(d);
+    setOffDays(p => isRemoving ? p.filter(x => x!==d) : [...p, d]);
+    if (gcalToken) {
+      if (isRemoving) {
+        // Delete Off Day event from Google Calendar
+        try {
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?privateExtendedProperty=offDayDate%3D${d}`, {
+            headers: { Authorization: `Bearer ${gcalToken}` }
+          });
+          const data = await res.json();
+          if (data.items) {
+            for (const ev of data.items) {
+              await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${gcalToken}` }
+              });
+            }
+          }
+        } catch {}
+      } else {
+        // Create Off Day event in Google Calendar
+        try {
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events`, {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              summary: 'Off Day',
+              start: { date: d },
+              end: { date: d },
+              extendedProperties: { private: { offDayDate: d } }
+            })
+          });
+        } catch {}
+      }
+    }
+  };
   function updateLinks(collabId, key, value) {
     setCollabs(p => p.map(c => c.id!==collabId ? c : { ...c, links: { ...(c.links||{}), [key]: value } }));
   }
@@ -836,7 +873,7 @@ export default function CollabCelestia() {
   function connectGoogleCalendar() {
     const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
     const redirectUri = window.location.origin;
-    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly');
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/tasks');
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&prompt=consent&access_type=offline`;
     setGcalConnecting(true);
     const popup = window.open(authUrl, 'gcal_auth', 'width=500,height=600');
@@ -883,60 +920,90 @@ export default function CollabCelestia() {
     } catch {}
   }
 
-  async function createGcalEvents(collab, token, calId) {
+  async function getOrCreateTaskList(token) {
+    try {
+      const res = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const existing = data.items?.find(l => l.title === 'Our Cosy Partnerships');
+      if (existing) return existing.id;
+      const created = await fetch('https://tasks.googleapis.com/tasks/v1/users/@me/lists', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Our Cosy Partnerships' })
+      });
+      const list = await created.json();
+      return list.id;
+    } catch { return '@default'; }
+  }
+
+  async function createGcalEvents(collab, token) {
     if (!token) return;
+    const listId = await getOrCreateTaskList(token);
     const items = collab.items || [];
     for (const item of items) {
-      const title = `${collab.brand} • ${item.type}${item.status !== 'Scheduled' ? ` [${item.status}]` : ''}`;
-      const event = {
-        summary: title,
-        start: { date: item.date },
-        end: { date: item.date },
-        extendedProperties: { private: { ourcosyId: item.id, collabId: collab.id } }
-      };
+      const title = `${collab.brand} • ${item.type}`;
+      const due = new Date(item.date + 'T00:00:00.000Z').toISOString();
       try {
-        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, {
+        const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(event)
+          body: JSON.stringify({
+            title,
+            due,
+            notes: `Partnership ID: ${collab.id} | Item ID: ${item.id}`
+          })
         });
+        const task = await res.json();
+        // Store task id on item for future updates
+        item.taskId = task.id;
+        item.taskListId = listId;
       } catch {}
     }
   }
 
-  async function deleteGcalEvents(collabId, token, calId) {
+  async function deleteGcalEvents(collabId, token) {
     if (!token) return;
+    const listId = await getOrCreateTaskList(token);
     try {
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=collabId%3D${collabId}`, {
+      const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=true&showHidden=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
       if (data.items) {
-        for (const ev of data.items) {
-          await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, {
-            method: 'DELETE',
-            headers: { Authorization: `Bearer ${token}` }
-          });
+        for (const task of data.items) {
+          if (task.notes?.includes(`Partnership ID: ${collabId}`)) {
+            await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${token}` }
+            });
+          }
         }
       }
     } catch {}
   }
 
-  async function updateGcalEventStatus(itemId, collabId, brand, type, status, date, token, calId) {
+  async function updateGcalEventStatus(itemId, collabId, brand, type, status, date, token) {
     if (!token) return;
+    const listId = await getOrCreateTaskList(token);
     try {
-      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=ourcosyId%3D${itemId}`, {
+      const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=true&showHidden=true`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       const data = await res.json();
-      if (data.items && data.items.length > 0) {
-        const ev = data.items[0];
-        const title = `${brand} • ${type}${status !== 'Scheduled' ? ` [${status}]` : ''}`;
-        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ summary: title, start: { date }, end: { date } })
-        });
+      if (data.items) {
+        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`));
+        if (task) {
+          await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              status: status === 'Posted' ? 'completed' : 'needsAction',
+              completed: status === 'Posted' ? new Date().toISOString() : null
+            })
+          });
+        }
       }
     } catch {}
   }
@@ -954,10 +1021,48 @@ export default function CollabCelestia() {
     links: { briefLink: "", driveLink: "" },
   });
 
+  async function createCalendarEvent(collab, token) {
+    if (!token) return;
+    try {
+      await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary: collab.brand,
+          description: collab.notes || '',
+          start: { date: collab.startDate },
+          end: { date: collab.endDate || collab.startDate },
+          location: collab.location || '',
+          extendedProperties: { private: { collabId: collab.id, type: 'event' } }
+        })
+      });
+    } catch {}
+  }
+
   async function handleAdd() {
     const endDate = form.singleDay ? form.startDate : form.endDate;
     const delivs  = form.deliverables.filter(d => d.count > 0);
     const newId   = Date.now().toString();
+
+    if (formType === 'event') {
+      const items = [];
+      if (scheduleMode === 'manual') {
+        Object.entries(manualSchedule).forEach(([date, typeMap]) => {
+          Object.entries(typeMap).forEach(([type, count]) => {
+            for (let i = 0; i < count; i++)
+              items.push({ type, date, status: 'Scheduled', id: `${Date.now()}-${Math.random()}` });
+          });
+        });
+      }
+      const newCollab = { ...form, endDate, id: newId, items, collabType: 'event' };
+      setCollabs(p => [...p, newCollab]);
+      if (gcalToken) {
+        createCalendarEvent({ ...newCollab, startDate: form.startDate, endDate: endDate || form.startDate }, gcalToken);
+        if (items.length > 0) createGcalEvents(newCollab, gcalToken);
+      }
+      resetForm(); setManualSchedule({}); setFormType('partnership'); setShowModal(false); setView('overview');
+      return;
+    }
 
     if (scheduleMode === "manual") {
       const items = [];
@@ -967,10 +1072,10 @@ export default function CollabCelestia() {
             items.push({ type, date, status: "Scheduled", id: `${Date.now()}-${Math.random()}` });
         });
       });
-      const newCollab = { ...form, endDate, id: newId, items };
+      const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) createGcalEvents(newCollab, gcalToken, gcalCalendarId);
-      resetForm(); setManualSchedule({}); setShowModal(false); setView("overview");
+      if (gcalToken) createGcalEvents(newCollab, gcalToken);
+      resetForm(); setManualSchedule({}); setFormType("partnership"); setShowModal(false); setView("overview");
     } else {
       setAiLoading(true); setAiTip("");
       const items = autoSpread({ ...form, endDate, deliverables: delivs }, blackoutDates);
@@ -981,10 +1086,10 @@ export default function CollabCelestia() {
         const data = await res.json();
         setAiTip(data.content?.[0]?.text || "");
       } catch {}
-      const newCollab = { ...form, endDate, id: newId, items };
+      const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) createGcalEvents(newCollab, gcalToken, gcalCalendarId);
-      resetForm(); setManualSchedule({}); setAiLoading(false); setShowModal(false); setView("overview");
+      if (gcalToken) createGcalEvents(newCollab, gcalToken);
+      resetForm(); setManualSchedule({}); setFormType("partnership"); setAiLoading(false); setShowModal(false); setView("overview");
     }
   }
 
@@ -992,7 +1097,7 @@ export default function CollabCelestia() {
     setCollabs(p => p.map(c => {
       if (c.id!==cId) return c;
       const item = c.items.find(i => i.id===iId);
-      if (item && gcalToken) updateGcalEventStatus(iId, cId, c.brand, item.type, status, item.date, gcalToken, gcalCalendarId);
+      if (item && gcalToken) updateGcalEventStatus(iId, cId, c.brand, item.type, status, item.date, gcalToken);
       return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
     }));
   }
@@ -1005,8 +1110,29 @@ export default function CollabCelestia() {
       })
     }));
   }
-  function delCollab(id) {
-    if (gcalToken) deleteGcalEvents(id, gcalToken, gcalCalendarId);
+  async function delCollab(id) {
+    const collab = collabs.find(c => c.id === id);
+    if (gcalToken) {
+      // Delete tasks for all deliverables
+      deleteGcalEvents(id, gcalToken);
+      // If it was an event type, also delete the Google Calendar event
+      if (collab?.collabType === 'event') {
+        try {
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?privateExtendedProperty=collabId%3D${id}`, {
+            headers: { Authorization: `Bearer ${gcalToken}` }
+          });
+          const data = await res.json();
+          if (data.items) {
+            for (const ev of data.items) {
+              await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${gcalToken}` }
+              });
+            }
+          }
+        } catch {}
+      }
+    }
     setCollabs(p => p.filter(c => c.id!==id));
   }
   function moveItemToDate(cId, iId, newDate) {
@@ -1975,8 +2101,8 @@ export default function CollabCelestia() {
             {/* Header */}
             <div style={{ padding:"24px 20px 16px", display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexShrink:0 }}>
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:3, color:C.tan, marginBottom:7 }}>NEW PARTNERSHIP</div>
-                <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:26, fontWeight:300, color:C.darkBrown, letterSpacing:.4 }}>Add Partnership</h2>
+                <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:3, color:C.tan, marginBottom:7 }}>{formType==="event"?"NEW EVENT":"NEW PARTNERSHIP"}</div>
+                <h2 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:26, fontWeight:300, color:C.darkBrown, letterSpacing:.4 }}>{formType==="event"?"Add Event":"Add Partnership"}</h2>
               </div>
               <button onClick={()=>setShowModal(false)} style={{ fontSize:22, color:C.tan, width:36, height:36, borderRadius:10, background:C.sand, border:`1px solid ${C.beige}`, display:"flex", alignItems:"center", justifyContent:"center" }}>×</button>
             </div>
@@ -1984,11 +2110,29 @@ export default function CollabCelestia() {
             <div style={{ overflowY:"auto", padding:"0 20px 20px", flex:1 }}>
               <div style={{ display:"flex", flexDirection:"column", gap:20 }}>
 
+                {/* Type toggle */}
+                <div style={{ display:"flex", gap:8 }}>
+                  {[["partnership","◈ Partnership"],["event","✦ Event"]].map(([type,label])=>(
+                    <button key={type} onClick={()=>setFormType(type)} className="cb"
+                      style={{ flex:1,padding:"10px 8px",borderRadius:12,fontFamily:"'Cormorant Garamond', serif",fontSize:10,letterSpacing:1,background:formType===type?C.sand:C.cream,color:formType===type?C.amber:C.tan,border:`1.5px solid ${formType===type?C.gold:C.beige}`,transition:"all .2s" }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Brand */}
                 <div>
-                  <label style={lbl}>BRAND NAME</label>
-                  <input value={form.brand} onChange={e=>setForm(p=>({...p,brand:e.target.value}))} placeholder="e.g. Aesop, Loewe…" style={inp}/>
+                  <label style={lbl}>{formType==="event"?"BRAND / HOST NAME":"BRAND NAME"}</label>
+                  <input value={form.brand} onChange={e=>setForm(p=>({...p,brand:e.target.value}))} placeholder={formType==="event"?"e.g. Loewe, Sephora…":"e.g. Aesop, Loewe…"} style={inp}/>
                 </div>
+
+                {/* Location — events only */}
+                {formType==="event" && (
+                  <div>
+                    <label style={lbl}>LOCATION (OPTIONAL)</label>
+                    <input value={form.location||""} onChange={e=>setForm(p=>({...p,location:e.target.value}))} placeholder="e.g. Raffles Hotel, Singapore" style={inp}/>
+                  </div>
+                )}
 
                 {/* Dates */}
                 <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
@@ -2058,8 +2202,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>
 
-                {/* Fee */}
-                <div>
+                {/* Fee — partnerships only */}
+                {formType==="partnership" && <div>
                   <label style={lbl}>AGREED FEE (SGD) — OPTIONAL</label>
                   <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                     <button onClick={()=>setForm(p=>({...p,gifted:!p.gifted,fee:"",feeBreakdown:{cash:"",storeCredit:"",voucher:""}}))} className="cb"
@@ -2084,8 +2228,8 @@ export default function CollabCelestia() {
                   )}
                 </div>
 
-                {/* Payment status */}
-                <div>
+                {/* Payment status — partnerships only */}
+                {formType==="partnership" && <div>
                   <label style={lbl}>PAYMENT STATUS</label>
                   <div style={{ display:"flex", gap:8 }}>
                     {Object.keys(PAYMENT_STATUS_CONFIG).map(s=>{
@@ -2095,8 +2239,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>
 
-                {/* Payment due */}
-                {!form.gifted && (
+                {/* Payment due — partnerships only */}
+                {formType==="partnership" && !form.gifted && (
                   <div>
                     <label style={lbl}>PAYMENT DUE DATE — OPTIONAL</label>
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -2196,12 +2340,12 @@ export default function CollabCelestia() {
                             <div style={{ padding:"10px 14px", background:C.sand, borderBottom:`1px solid ${C.beige}` }}>
                               <span style={{ fontFamily:"'Cinzel', serif", fontSize:12, color:C.darkBrown, letterSpacing:.5 }}>{MONTHS[month]} {year}</span>
                             </div>
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", padding:"6px 8px 2px" }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", padding:"6px 4px 2px" }}>
                               {["S","M","T","W","T","F","S"].map((d,i)=>(
                                 <div key={i} style={{ textAlign:"center", fontFamily:"'Cinzel', serif", fontSize:9, color:C.tan, letterSpacing:.5, padding:"3px 0" }}>{d}</div>
                               ))}
                             </div>
-                            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:2, padding:"2px 8px 10px" }}>
+                            <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", gap:0, padding:"2px 4px 10px" }}>
                               {Array.from({length:fd}).map((_,i)=><div key={"e"+i}/>)}
                               {Array.from({length:dim}).map((_,i)=>{
                                 const day=i+1; const ds=`${year}-${String(month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
@@ -2210,7 +2354,7 @@ export default function CollabCelestia() {
                                 return (
                                   <div key={day} style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
                                     <button onClick={()=>toggleDate(ds)}
-                                      style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:isSelected?600:400,outline:isSelected?`2px solid ${C.amber}`:"none",outlineOffset:1,transition:"all .1s" }}>
+                                      style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",boxShadow:isSelected?`inset 0 0 0 2px ${C.amber}`:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:isSelected?600:400,outline:"none",transition:"all .1s",boxSizing:"border-box" }}>
                                       {day}
                                     </button>
                                     {isSelected && (
@@ -2252,7 +2396,7 @@ export default function CollabCelestia() {
                 {scheduleMode==="ai" ? (
                   <button onClick={handleAdd} disabled={!form.brand||!form.startDate||((!form.singleDay)&&!form.endDate)||aiLoading} className="cb"
                     style={{ background:`linear-gradient(135deg,${C.gold},${C.amber})`,color:C.cream,padding:"15px",borderRadius:16,fontFamily:"'Cormorant Garamond', serif",fontSize:12,letterSpacing:2,opacity:(!form.brand||!form.startDate)?0.5:1,boxShadow:`0 6px 24px ${C.gold}55`,transition:"opacity .2s" }}>
-                    {aiLoading?"✦ PLANNING YOUR SCHEDULE…":"SCHEDULE WITH AI  →"}
+                    {aiLoading?"✦ PLANNING YOUR SCHEDULE…":(formType==="event"?"SAVE EVENT  →":"SCHEDULE WITH AI  →")}
                   </button>
                 ) : (()=>{
                   const totalNeeded=form.deliverables.filter(d=>d.count>0).reduce((s,d)=>s+d.count,0);
@@ -2267,7 +2411,7 @@ export default function CollabCelestia() {
                       )}
                       <button onClick={handleAdd} disabled={!ready} className="cb"
                         style={{ background:`linear-gradient(135deg,${C.gold},${C.amber})`,color:C.cream,padding:"15px",borderRadius:16,fontFamily:"'Cormorant Garamond', serif",fontSize:12,letterSpacing:2,opacity:ready?1:0.5,boxShadow:`0 6px 24px ${C.gold}55` }}>
-                        SAVE PARTNERSHIP  →
+                        {formType==="event"?"SAVE EVENT  →":"SAVE PARTNERSHIP  →"}
                       </button>
                     </div>
                   );
