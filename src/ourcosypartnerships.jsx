@@ -828,11 +828,15 @@ export default function CollabCelestia() {
     const items = allItems.filter(i => i.date === d);
     // Also include events (no deliverables) that fall on this date
     collabs.forEach(c => {
-      if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
+      if (c.collabType === 'event') {
         const start = c.startDate;
         const end = c.endDate || c.startDate;
         if (d >= start && d <= end) {
-          items.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
+          // Only add event chip if no deliverable already covers this date for this collab
+          const hasDelivOnDate = (c.items||[]).some(i => i.date === d);
+          if (!hasDelivOnDate) {
+            items.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
+          }
         }
       }
     });
