@@ -2352,16 +2352,11 @@ export default function CollabCelestia() {
                                 const inRange=dates.includes(ds); const isSelected=!!manualSchedule[ds]; const dayData=manualSchedule[ds]||{};
                                 if(!inRange) return (<div key={day} style={{ aspectRatio:"1",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center" }}><span style={{ fontFamily:"'Cinzel', serif",fontSize:11,color:C.beige }}>{day}</span></div>);
                                 return (
-                                  <div key={day} style={{ display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden", minWidth:0 }}>
+                                  <div key={day} style={{ position:"relative", width:"100%", aspectRatio:"1" }}>
                                     <button onClick={()=>toggleDate(ds)}
-                                      style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",boxShadow:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:400,outline:"none",transition:"all .1s",boxSizing:"border-box" }}>
+                                      style={{ position:"absolute",inset:2,borderRadius:6,border:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:400,outline:"none" }}>
                                       {day}
                                     </button>
-                                    {isSelected && (
-                                      <div style={{ display:"flex",gap:2,marginTop:2,flexWrap:"wrap",justifyContent:"center" }}>
-                                        {activeDelivs.map(d=>(dayData[d.type]||0)>0&&(<div key={d.type} style={{ width:4,height:4,borderRadius:"50%",background:DELIVERABLE_CONFIG[d.type].dot }}/>))}
-                                      </div>
-                                    )}
                                   </div>
                                 );
                               })}
