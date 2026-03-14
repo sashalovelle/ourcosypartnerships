@@ -690,6 +690,39 @@ export default function CollabCelestia() {
   const [payYear, setPayYear]         = useState(today.getFullYear());
   const [scheduleMode, setScheduleMode] = useState("manual");
   const [manualSchedule, setManualSchedule] = useState({});
+  const [gcalToken, setGcalToken]       = useState(() => localStorage.getItem('ocd-gcal-token') || null);
+  const [gcalConnecting, setGcalConnecting] = useState(false);
+  const [gcalCalendarId, setGcalCalendarId] = useState(() => localStorage.getItem('ocd-gcal-calid') || 'primary');
+  const [gcalCalendars, setGcalCalendars] = useState([]);
+  const [showCalPicker, setShowCalPicker] = useState(false);
+
+  // ── Restore Google Calendar connection on mount ──
+  useEffect(() => {
+    const savedToken = localStorage.getItem('ocd-gcal-token');
+    const expiresAt  = parseInt(localStorage.getItem('ocd-gcal-expires') || '0');
+    if (savedToken && Date.now() < expiresAt) {
+      // Token still valid
+      fetchCalendars(savedToken);
+    } else {
+      // Try to refresh using stored refresh token
+      autoRefreshToken();
+    }
+  }, []);
+
+  async function autoRefreshToken() {
+    try {
+      const res = await fetch('/api/refresh-token', { method: 'POST' });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data.access_token) {
+        const expiresAt = Date.now() + (data.expires_in - 60) * 1000;
+        setGcalToken(data.access_token);
+        localStorage.setItem('ocd-gcal-token', data.access_token);
+        localStorage.setItem('ocd-gcal-expires', expiresAt.toString());
+        fetchCalendars(data.access_token);
+      }
+    } catch {}
+  }
 
   // ── Load from Supabase on mount ──
   useEffect(() => {
@@ -799,6 +832,115 @@ export default function CollabCelestia() {
   const daysInMonth = getDaysInMonth(calYear, calMonth);
   const firstDay    = getFirstDay(calYear, calMonth);
 
+  // ── Google Calendar helpers ──
+  function connectGoogleCalendar() {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    const redirectUri = window.location.origin;
+    const scope = encodeURIComponent('https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly');
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${clientId}&redirect_uri=${redirectUri}&response_type=code&scope=${scope}&prompt=consent&access_type=offline`;
+    setGcalConnecting(true);
+    const popup = window.open(authUrl, 'gcal_auth', 'width=500,height=600');
+    const check = setInterval(async () => {
+      try {
+        if (popup && popup.location && popup.location.search) {
+          const params = new URLSearchParams(popup.location.search.substring(1));
+          const code = params.get('code');
+          if (code) {
+            clearInterval(check);
+            popup.close();
+            // Exchange code for tokens via our serverless function
+            const res = await fetch('/api/google-auth', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ code, redirect_uri: redirectUri }),
+            });
+            const data = await res.json();
+            if (data.access_token) {
+              const expiresAt = Date.now() + (data.expires_in - 60) * 1000;
+              setGcalToken(data.access_token);
+              localStorage.setItem('ocd-gcal-token', data.access_token);
+              localStorage.setItem('ocd-gcal-expires', expiresAt.toString());
+              fetchCalendars(data.access_token);
+            }
+            setGcalConnecting(false);
+          }
+        }
+        if (popup && popup.closed) { clearInterval(check); setGcalConnecting(false); }
+      } catch {}
+    }, 500);
+  }
+
+  async function fetchCalendars(token) {
+    try {
+      const res = await fetch('https://www.googleapis.com/calendar/v3/users/me/calendarList', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.items) {
+        setGcalCalendars(data.items.filter(c => c.accessRole === 'owner' || c.accessRole === 'writer'));
+        setShowCalPicker(true);
+      }
+    } catch {}
+  }
+
+  async function createGcalEvents(collab, token, calId) {
+    if (!token) return;
+    const items = collab.items || [];
+    for (const item of items) {
+      const title = `${collab.brand} • ${item.type}${item.status !== 'Scheduled' ? ` [${item.status}]` : ''}`;
+      const event = {
+        summary: title,
+        start: { date: item.date },
+        end: { date: item.date },
+        extendedProperties: { private: { ourcosyId: item.id, collabId: collab.id } }
+      };
+      try {
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(event)
+        });
+      } catch {}
+    }
+  }
+
+  async function deleteGcalEvents(collabId, token, calId) {
+    if (!token) return;
+    try {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=collabId%3D${collabId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.items) {
+        for (const ev of data.items) {
+          await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` }
+          });
+        }
+      }
+    } catch {}
+  }
+
+  async function updateGcalEventStatus(itemId, collabId, brand, type, status, date, token, calId) {
+    if (!token) return;
+    try {
+      const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events?privateExtendedProperty=ourcosyId%3D${itemId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      if (data.items && data.items.length > 0) {
+        const ev = data.items[0];
+        const title = `${brand} • ${type}${status !== 'Scheduled' ? ` [${status}]` : ''}`;
+        await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calId)}/events/${ev.id}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ summary: title, start: { date }, end: { date } })
+        });
+      }
+    } catch {}
+  }
+
   function adjMonth(delta) {
     if (delta === -1) { calMonth === 0 ? (setCalMonth(11), setCalYear(y=>y-1)) : setCalMonth(m=>m-1); }
     else              { calMonth === 11 ? (setCalMonth(0), setCalYear(y=>y+1)) : setCalMonth(m=>m+1); }
@@ -815,6 +957,7 @@ export default function CollabCelestia() {
   async function handleAdd() {
     const endDate = form.singleDay ? form.startDate : form.endDate;
     const delivs  = form.deliverables.filter(d => d.count > 0);
+    const newId   = Date.now().toString();
 
     if (scheduleMode === "manual") {
       const items = [];
@@ -824,7 +967,9 @@ export default function CollabCelestia() {
             items.push({ type, date, status: "Scheduled", id: `${Date.now()}-${Math.random()}` });
         });
       });
-      setCollabs(p => [...p, { ...form, endDate, id: Date.now().toString(), items }]);
+      const newCollab = { ...form, endDate, id: newId, items };
+      setCollabs(p => [...p, newCollab]);
+      if (gcalToken) createGcalEvents(newCollab, gcalToken, gcalCalendarId);
       resetForm(); setManualSchedule({}); setShowModal(false); setView("overview");
     } else {
       setAiLoading(true); setAiTip("");
@@ -836,13 +981,20 @@ export default function CollabCelestia() {
         const data = await res.json();
         setAiTip(data.content?.[0]?.text || "");
       } catch {}
-      setCollabs(p => [...p, { ...form, endDate, id: Date.now().toString(), items }]);
+      const newCollab = { ...form, endDate, id: newId, items };
+      setCollabs(p => [...p, newCollab]);
+      if (gcalToken) createGcalEvents(newCollab, gcalToken, gcalCalendarId);
       resetForm(); setManualSchedule({}); setAiLoading(false); setShowModal(false); setView("overview");
     }
   }
 
   function updStatus(cId, iId, status) {
-    setCollabs(p => p.map(c => c.id!==cId ? c : { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) }));
+    setCollabs(p => p.map(c => {
+      if (c.id!==cId) return c;
+      const item = c.items.find(i => i.id===iId);
+      if (item && gcalToken) updateGcalEventStatus(iId, cId, c.brand, item.type, status, item.date, gcalToken, gcalCalendarId);
+      return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
+    }));
   }
   function nudge(cId, iId, delta) {
     setCollabs(p => p.map(c => c.id!==cId ? c : {
@@ -853,7 +1005,10 @@ export default function CollabCelestia() {
       })
     }));
   }
-  function delCollab(id) { setCollabs(p => p.filter(c => c.id!==id)); }
+  function delCollab(id) {
+    if (gcalToken) deleteGcalEvents(id, gcalToken, gcalCalendarId);
+    setCollabs(p => p.filter(c => c.id!==id));
+  }
   function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
@@ -1138,7 +1293,7 @@ export default function CollabCelestia() {
                 style={{ background:`linear-gradient(135deg, ${C.gold}, ${C.amber})`, color:C.cream, padding:"14px 36px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:13, letterSpacing:1.5, boxShadow:`0 4px 20px ${C.gold}45`, transition:"all .2s" }}>
                 ✦ ADD PARTNERSHIP
               </button>
-              <div style={{ marginTop:14, fontSize:12, color:C.tan, fontStyle:"italic" }}>You can also set blackout dates before adding partnerships.</div>
+
             </div>
           </div>
         )}
@@ -1233,7 +1388,7 @@ export default function CollabCelestia() {
               </div>
             )}
 
-            <div style={{ background:`${C.cream}F0`, borderRadius:22, border:`1px solid ${C.beige}`, boxShadow:"0 8px 40px rgba(0,0,0,.06)" }}>
+            <div style={{ background:`${C.cream}F0`, borderRadius:22, border:`1px solid ${C.beige}`, boxShadow:"0 8px 40px rgba(0,0,0,.06)", overflowX:"hidden" }}>
               <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", background:C.sand, borderBottom:`1px solid ${C.beige}` }}>
                 {DAYS_SHORT.map(d=>(
                   <div key={d} style={{ padding:"12px 8px", textAlign:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.amber }}>{d}</div>
@@ -1580,8 +1735,44 @@ export default function CollabCelestia() {
           <div className="fi">
             <div style={{ marginBottom:28 }}>
               <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:3, color:C.tan, marginBottom:6 }}>YOUR SCHEDULE</div>
-              <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:30, fontWeight:300, color:C.darkBrown, marginBottom:8 }}>Off Days</h1>
-              <p style={{ fontSize:15, color:C.tan, fontStyle:"italic" }}>Visual reminder only — AI schedules freely on these days.</p>
+              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
+                <div>
+                  <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:30, fontWeight:300, color:C.darkBrown, marginBottom:8 }}>Off Days</h1>
+                  <p style={{ fontSize:15, color:C.tan, fontStyle:"italic" }}>Visual reminder only — AI schedules freely on these days.</p>
+                </div>
+                {/* Google Calendar Connect Button */}
+                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
+                  {!gcalToken ? (
+                    <button onClick={connectGoogleCalendar} disabled={gcalConnecting} className="cb"
+                      style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 18px", borderRadius:16, background:C.sand, border:`1px solid ${C.beige}`, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:.5, color:C.brown, transition:"all .2s" }}>
+                      <span style={{ fontSize:14 }}>📅</span>
+                      {gcalConnecting ? "Connecting…" : "Connect Google Calendar"}
+                    </button>
+                  ) : (
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
+                      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:12, background:"#DDE8DC", border:"1px solid #88B890" }}>
+                        <span style={{ fontSize:12 }}>✓</span>
+                        <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:11, color:"#2A5A30" }}>Google Calendar connected</span>
+                      </div>
+                      {gcalCalendars.length > 0 && (
+                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
+                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, textAlign:"right" }}>SYNCING TO</span>
+                          <select value={gcalCalendarId} onChange={e=>{ setGcalCalendarId(e.target.value); localStorage.setItem('ocd-gcal-calid', e.target.value); }}
+                            style={{ padding:"6px 12px", borderRadius:10, border:`1px solid ${C.beige}`, background:C.parchment, fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.brown, outline:"none" }}>
+                            {gcalCalendars.map(cal=>(
+                              <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                      <button onClick={()=>{ setGcalToken(null); setGcalCalendars([]); localStorage.removeItem('ocd-gcal-token'); localStorage.removeItem('ocd-gcal-calid'); }}
+                        style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, letterSpacing:.5, background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
+                        Disconnect
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
             <div style={{ background:`${C.cream}F0`, borderRadius:22, overflow:"hidden", border:`1px solid ${C.beige}`, boxShadow:"0 4px 24px rgba(0,0,0,.05)", marginBottom:24 }}>
               <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"16px 24px", borderBottom:`1px solid ${C.beige}`, background:C.sand }}>
