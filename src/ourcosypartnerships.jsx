@@ -2336,7 +2336,7 @@ export default function CollabCelestia() {
                       {Object.values(monthGroups).map(({year,month,dates})=>{
                         const fd=new Date(year,month,1).getDay(); const dim=new Date(year,month+1,0).getDate();
                         return (
-                          <div key={year+"-"+month} style={{ background:C.parchment, borderRadius:16, border:`1px solid ${C.beige}`, overflow:"hidden", width:"100%", boxSizing:"border-box" }}>
+                          <div key={year+"-"+month} style={{ background:C.parchment, borderRadius:16, border:`1px solid ${C.beige}`, overflow:"hidden", width:"100%", boxSizing:"border-box", contain:"layout" }}>
                             <div style={{ padding:"10px 14px", background:C.sand, borderBottom:`1px solid ${C.beige}` }}>
                               <span style={{ fontFamily:"'Cinzel', serif", fontSize:12, color:C.darkBrown, letterSpacing:.5 }}>{MONTHS[month]} {year}</span>
                             </div>
@@ -2352,7 +2352,7 @@ export default function CollabCelestia() {
                                 const inRange=dates.includes(ds); const isSelected=!!manualSchedule[ds]; const dayData=manualSchedule[ds]||{};
                                 if(!inRange) return (<div key={day} style={{ aspectRatio:"1",borderRadius:6,display:"flex",alignItems:"center",justifyContent:"center" }}><span style={{ fontFamily:"'Cinzel', serif",fontSize:11,color:C.beige }}>{day}</span></div>);
                                 return (
-                                  <div key={day} style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+                                  <div key={day} style={{ display:"flex", flexDirection:"column", alignItems:"center", overflow:"hidden", minWidth:0 }}>
                                     <button onClick={()=>toggleDate(ds)}
                                       style={{ width:"100%",aspectRatio:"1",borderRadius:6,border:"none",boxShadow:"none",background:isSelected?C.gold:C.sand,color:isSelected?C.cream:C.darkBrown,fontFamily:"'Cinzel', serif",fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:400,outline:"none",transition:"all .1s",boxSizing:"border-box" }}>
                                       {day}
