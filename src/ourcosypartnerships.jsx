@@ -942,23 +942,27 @@ export default function CollabCelestia() {
     if (!token) return;
     const listId = await getOrCreateTaskList(token);
     const items = collab.items || [];
-    for (const item of items) {
-      const title = `${collab.brand} • ${item.type}`;
-      const due = new Date(item.date + 'T00:00:00.000Z').toISOString();
+    // Group items by date + type to stack them
+    const grouped = {};
+    items.forEach(item => {
+      const key = `${item.date}||${item.type}`;
+      if (!grouped[key]) grouped[key] = { date: item.date, type: item.type, count: 0, ids: [] };
+      grouped[key].count++;
+      grouped[key].ids.push(item.id);
+    });
+    for (const group of Object.values(grouped)) {
+      const title = group.count > 1 ? `${collab.brand} • ${group.type} x${group.count}` : `${collab.brand} • ${group.type}`;
+      const due = new Date(group.date + 'T00:00:00.000Z').toISOString();
       try {
-        const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
+        await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             title,
             due,
-            notes: `Partnership ID: ${collab.id} | Item ID: ${item.id}`
+            notes: `Partnership ID: ${collab.id} | Item IDs: ${group.ids.join(',')}`
           })
         });
-        const task = await res.json();
-        // Store task id on item for future updates
-        item.taskId = task.id;
-        item.taskListId = listId;
       } catch {}
     }
   }
@@ -993,7 +997,7 @@ export default function CollabCelestia() {
       });
       const data = await res.json();
       if (data.items) {
-        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`));
+        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`) || t.notes?.includes(`Item IDs: ${itemId}`) || t.notes?.includes(`,${itemId}`) || t.notes?.includes(`${itemId},`));
         if (task) {
           await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
             method: 'PATCH',
