@@ -710,6 +710,25 @@ export default function CollabCelestia() {
     }
   }, []);
 
+  async function getFreshToken() {
+    const expiresAt = parseInt(localStorage.getItem('ocd-gcal-expires') || '0');
+    if (gcalToken && Date.now() < expiresAt) return gcalToken;
+    // Token expired, refresh it
+    try {
+      const res = await fetch('/api/refresh-token', { method: 'POST' });
+      if (!res.ok) return gcalToken;
+      const data = await res.json();
+      if (data.access_token) {
+        const newExpiry = Date.now() + (data.expires_in - 60) * 1000;
+        setGcalToken(data.access_token);
+        localStorage.setItem('ocd-gcal-token', data.access_token);
+        localStorage.setItem('ocd-gcal-expires', newExpiry.toString());
+        return data.access_token;
+      }
+    } catch {}
+    return gcalToken;
+  }
+
   async function autoRefreshToken() {
     try {
       const res = await fetch('/api/refresh-token', { method: 'POST' });
@@ -1255,17 +1274,18 @@ export default function CollabCelestia() {
     setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: newItems, links: editForm.links||{} }));
 
     // Sync to Google
-    if (gcalToken) {
+    const freshToken = gcalToken ? await getFreshToken() : null;
+    if (freshToken) {
       // If brand name changed, delete old tasks and recreate with new name
       if (c.brand !== editForm.brand || newItems.length !== existingItems.length) {
-        await deleteGcalEvents(c.id, gcalToken);
+        await deleteGcalEvents(c.id, freshToken);
         const newCollab = { ...editForm, id: c.id, items: newItems };
-        await createGcalEvents(newCollab, gcalToken);
+        await createGcalEvents(newCollab, freshToken);
       } else {
         // Just update task dates for deliverables
         newItems.forEach(item => {
           const oldItem = existingItems.find(i => i.id === item.id);
-          if (oldItem && oldItem.date !== item.date) updateTaskDate(item.id, item.date, gcalToken);
+          if (oldItem && oldItem.date !== item.date) updateTaskDate(item.id, item.date, freshToken);
         });
       }
       // If event type, update the Google Calendar event
@@ -1275,7 +1295,7 @@ export default function CollabCelestia() {
           const timeMin = encodeURIComponent(new Date(c.startDate + 'T00:00:00.000Z').toISOString());
           const timeMax = encodeURIComponent(new Date((c.endDate || c.startDate) + 'T23:59:59.000Z').toISOString());
           const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?q=${encodeURIComponent(c.brand)}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`, {
-            headers: { Authorization: `Bearer ${gcalToken}` }
+            headers: { Authorization: `Bearer ${freshToken}` }
           });
           const data = await res.json();
           const ev = data.items?.find(e => e.summary === c.brand || e.extendedProperties?.private?.collabId === c.id);
