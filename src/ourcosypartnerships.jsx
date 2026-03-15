@@ -1193,15 +1193,24 @@ export default function CollabCelestia() {
   }
 
   function nudge(cId, iId, delta) {
+    let newDate;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => {
         if (i.id!==iId) return i;
         const d = new Date(i.date+"T12:00:00"); d.setDate(d.getDate()+delta);
-        const newDate = d.toISOString().split("T")[0];
-        if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
+        newDate = d.toISOString().split("T")[0];
         return { ...i, date: newDate };
       })
     }));
+    if (gcalToken) {
+      setCollabs(current => {
+        const collab = current.find(c => c.id===cId);
+        if (collab) {
+          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(collab, gcalToken));
+        }
+        return current;
+      });
+    }
   }
   async function delCollab(id) {
     const collab = collabs.find(c => c.id === id);
@@ -1228,24 +1237,37 @@ export default function CollabCelestia() {
     }
     setCollabs(p => p.filter(c => c.id!==id));
   }
-  function moveItemToDate(cId, iId, newDate) {
+  async function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
-    if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, date: newDate })
     }));
+    if (gcalToken) {
+      setCollabs(current => {
+        const collab = current.find(c => c.id===cId);
+        if (collab) {
+          const updatedCollab = { ...collab, items: collab.items.map(i => i.id!==iId ? i : { ...i, date: newDate }) };
+          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(updatedCollab, gcalToken));
+        }
+        return current;
+      });
+    }
   }
   function moveGroupToDate(cId, type, fromDate, newDate) {
     if (!newDate) return;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
-      ...c, items: c.items.map(i => {
-        if (i.type===type && i.date===fromDate) {
-          if (gcalToken) updateTaskDate(i.id, newDate, gcalToken);
-          return { ...i, date: newDate };
-        }
-        return i;
-      })
+      ...c, items: c.items.map(i => i.type===type && i.date===fromDate ? { ...i, date: newDate } : i)
     }));
+    if (gcalToken) {
+      setCollabs(current => {
+        const collab = current.find(c => c.id===cId);
+        if (collab) {
+          const updatedCollab = { ...collab, items: collab.items.map(i => i.type===type && i.date===fromDate ? { ...i, date: newDate } : i) };
+          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(updatedCollab, gcalToken));
+        }
+        return current;
+      });
+    }
   }
   function updateItemNote(cId, iId, note) {
     setCollabs(p => p.map(c => c.id!==cId ? c : {
