@@ -1308,25 +1308,29 @@ export default function CollabCelestia() {
             const endDate = editForm.endDate || editForm.startDate;
             const nextDay = new Date(endDate + 'T12:00:00');
             nextDay.setDate(nextDay.getDate() + 1);
-            // Build the update body - must explicitly set both start and end
-            const updateBody = {
+            // Delete old event and recreate (required when switching all-day <-> timed)
+            await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+              method: 'DELETE',
+              headers: { Authorization: `Bearer ${freshToken}` }
+            });
+            const newEventBody = {
               summary: editForm.brand,
               location: editForm.location || '',
+              extendedProperties: { private: { collabId: c.id, type: 'event' } },
+              ...(hasTime ? {
+                start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz },
+                end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz }
+              } : {
+                start: { date: editForm.startDate },
+                end:   { date: nextDay.toISOString().split('T')[0] }
+              })
             };
-            if (hasTime) {
-              updateBody.start = { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz };
-              updateBody.end   = { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz };
-            } else {
-              updateBody.start = { date: editForm.startDate };
-              updateBody.end   = { date: nextDay.toISOString().split('T')[0] };
-            }
-            const patchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
-              method: 'PATCH',
+            const createRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events`, {
+              method: 'POST',
               headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify(updateBody)
+              body: JSON.stringify(newEventBody)
             });
-            const patchData = await patchRes.json();
-            console.log('GCal update status:', patchRes.status, patchData.error || 'success');
+            console.log('GCal recreate status:', createRes.status);
           }
         } catch(e) { console.error('GCal update error:', e); }
       }
