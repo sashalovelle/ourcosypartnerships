@@ -1428,7 +1428,7 @@ export default function CollabCelestia() {
                       style={{ display:"block", width:"100%", textAlign:"left", padding:"8px 16px", fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:.5, color:view==="blackout"?C.amber:C.tan, background:view==="blackout"?C.sand:"transparent", border:"none", cursor:"pointer", borderTop:`1px solid ${C.beige}`, transition:"background .1s" }}
                       onMouseEnter={e=>e.currentTarget.style.background=C.sand}
                       onMouseLeave={e=>e.currentTarget.style.background=view==="blackout"?C.sand:"transparent"}>
-                      ✦ Off Days
+                      ✦ Manage
                     </button>
                   </div>
                 )}
@@ -1441,6 +1441,41 @@ export default function CollabCelestia() {
           </button>
         </nav>
         <div className="header-btn" style={{ display:"flex", alignItems:"center", gap:10 }}>
+          {/* Google Calendar connect */}
+          {!gcalToken ? (
+            <button onClick={connectGoogleCalendar} disabled={gcalConnecting} className="cb"
+              style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:20, background:C.sand, border:`1px solid ${C.beige}`, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:.5, color:C.brown, transition:"all .2s", whiteSpace:"nowrap" }}>
+              <span style={{ fontSize:12 }}>📅</span>
+              {gcalConnecting ? "Connecting…" : "Connect"}
+            </button>
+          ) : (
+            <div style={{ position:"relative" }}>
+              <button onClick={()=>setShowCalPicker(p=>!p)} className="cb"
+                style={{ display:"flex", alignItems:"center", gap:6, padding:"6px 14px", borderRadius:20, background:"#DDE8DC", border:"1px solid #88B890", fontFamily:"'Cormorant Garamond', serif", fontSize:11, color:"#2A5A30", whiteSpace:"nowrap" }}>
+                <span style={{ fontSize:12 }}>📅</span>
+                Connected
+              </button>
+              {showCalPicker && (
+                <div style={{ position:"absolute", top:"calc(100% + 4px)", right:0, zIndex:999, background:C.cream, border:`1px solid ${C.beige}`, borderRadius:12, padding:"12px 16px", boxShadow:"0 8px 24px rgba(0,0,0,.08)", minWidth:200 }}>
+                  {gcalCalendars.length > 0 && (
+                    <div style={{ display:"flex", flexDirection:"column", gap:4, marginBottom:10 }}>
+                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan }}>SYNCING TO</span>
+                      <select value={gcalCalendarId} onChange={e=>{ setGcalCalendarId(e.target.value); localStorage.setItem('ocd-gcal-calid', e.target.value); }}
+                        style={{ padding:"6px 12px", borderRadius:10, border:`1px solid ${C.beige}`, background:C.parchment, fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.brown, outline:"none" }}>
+                        {gcalCalendars.map(cal=>(
+                          <option key={cal.id} value={cal.id}>{cal.summary}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <button onClick={()=>{ setGcalToken(null); setGcalCalendars([]); setShowCalPicker(false); localStorage.removeItem('ocd-gcal-token'); localStorage.removeItem('ocd-gcal-calid'); }}
+                    style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, letterSpacing:.5, background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
+                    Disconnect
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
           {saveStatus && (
             <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color: saveStatus==="saving" ? C.tan : C.amber, opacity:.8, transition:"all .3s" }}>
               {saveStatus==="saving" ? "SAVING…" : "✦ SAVED"}
@@ -2018,43 +2053,9 @@ export default function CollabCelestia() {
           <div className="fi">
             <div style={{ marginBottom:28 }}>
               <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:3, color:C.tan, marginBottom:6 }}>YOUR SCHEDULE</div>
-              <div style={{ display:"flex", alignItems:"flex-start", justifyContent:"space-between", flexWrap:"wrap", gap:12 }}>
-                <div>
-                  <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:30, fontWeight:300, color:C.darkBrown, marginBottom:8 }}>Off Days</h1>
-                  <p style={{ fontSize:15, color:C.tan, fontStyle:"italic" }}>Visual reminder only — AI schedules freely on these days.</p>
-                </div>
-                {/* Google Calendar Connect Button */}
-                <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8 }}>
-                  {!gcalToken ? (
-                    <button onClick={connectGoogleCalendar} disabled={gcalConnecting} className="cb"
-                      style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 18px", borderRadius:16, background:C.sand, border:`1px solid ${C.beige}`, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:.5, color:C.brown, transition:"all .2s" }}>
-                      <span style={{ fontSize:14 }}>📅</span>
-                      {gcalConnecting ? "Connecting…" : "Connect Google Calendar"}
-                    </button>
-                  ) : (
-                    <div style={{ display:"flex", flexDirection:"column", gap:6, alignItems:"flex-end" }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6, padding:"8px 14px", borderRadius:12, background:"#DDE8DC", border:"1px solid #88B890" }}>
-                        <span style={{ fontSize:12 }}>✓</span>
-                        <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:11, color:"#2A5A30" }}>Google Calendar connected</span>
-                      </div>
-                      {gcalCalendars.length > 0 && (
-                        <div style={{ display:"flex", flexDirection:"column", gap:4 }}>
-                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, textAlign:"right" }}>SYNCING TO</span>
-                          <select value={gcalCalendarId} onChange={e=>{ setGcalCalendarId(e.target.value); localStorage.setItem('ocd-gcal-calid', e.target.value); }}
-                            style={{ padding:"6px 12px", borderRadius:10, border:`1px solid ${C.beige}`, background:C.parchment, fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:C.brown, outline:"none" }}>
-                            {gcalCalendars.map(cal=>(
-                              <option key={cal.id} value={cal.id}>{cal.summary}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-                      <button onClick={()=>{ setGcalToken(null); setGcalCalendars([]); localStorage.removeItem('ocd-gcal-token'); localStorage.removeItem('ocd-gcal-calid'); }}
-                        style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, letterSpacing:.5, background:"none", border:"none", cursor:"pointer", textDecoration:"underline" }}>
-                        Disconnect
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <div>
+                <h1 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:30, fontWeight:300, color:C.darkBrown, marginBottom:8 }}>Rest Days</h1>
+                <p style={{ fontSize:15, color:C.tan, fontStyle:"italic" }}>Visual reminder only — AI schedules freely on these days.</p>
               </div>
             </div>
             <div style={{ background:`${C.cream}F0`, borderRadius:22, overflow:"hidden", border:`1px solid ${C.beige}`, boxShadow:"0 4px 24px rgba(0,0,0,.05)", marginBottom:24 }}>
@@ -2089,7 +2090,7 @@ export default function CollabCelestia() {
             </div>
             {offDays.length>0 ? (
               <div>
-                <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan, marginBottom:12 }}>{offDays.length} OFF DAY{offDays.length>1?"S":""}</div>
+                <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan, marginBottom:12 }}>{offDays.length} REST DAY{offDays.length>1?"S":""}</div>
                 <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
                   {[...offDays].sort().map(d=>(
                     <span key={d} style={{ background:C.sand, border:`1px solid ${C.beige}`, borderRadius:20, padding:"4px 12px", fontSize:11, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.4, color:C.amber, display:"flex", alignItems:"center", gap:8 }}>
@@ -2100,7 +2101,7 @@ export default function CollabCelestia() {
                 </div>
               </div>
             ) : (
-              <p style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:14, color:C.tan, fontStyle:"italic" }}>No off days marked yet. Tap any day to flag it.</p>
+              <p style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:14, color:C.tan, fontStyle:"italic" }}>No rest days marked yet. Tap any day to flag it.</p>
             )}
           </div>
         )}
