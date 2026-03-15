@@ -1308,23 +1308,25 @@ export default function CollabCelestia() {
             const endDate = editForm.endDate || editForm.startDate;
             const nextDay = new Date(endDate + 'T12:00:00');
             nextDay.setDate(nextDay.getDate() + 1);
+            // Build the update body - must explicitly set both start and end
+            const updateBody = {
+              summary: editForm.brand,
+              location: editForm.location || '',
+            };
+            if (hasTime) {
+              updateBody.start = { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz };
+              updateBody.end   = { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz };
+            } else {
+              updateBody.start = { date: editForm.startDate };
+              updateBody.end   = { date: nextDay.toISOString().split('T')[0] };
+            }
             const patchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
-              method: 'PUT',
+              method: 'PATCH',
               headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                summary: editForm.brand,
-                location: editForm.location || '',
-                extendedProperties: { private: { collabId: c.id, type: 'event' } },
-                ...(hasTime ? {
-                  start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz },
-                  end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz }
-                } : {
-                  start: { date: editForm.startDate },
-                  end:   { date: nextDay.toISOString().split('T')[0] }
-                })
-              })
+              body: JSON.stringify(updateBody)
             });
-            console.log('GCal update status:', patchRes.status);
+            const patchData = await patchRes.json();
+            console.log('GCal update status:', patchRes.status, patchData.error || 'success');
           }
         } catch(e) { console.error('GCal update error:', e); }
       }
