@@ -458,8 +458,8 @@ function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirm
               const allPostedType = postedOfType === count;
               const dc = DELIVERABLE_CONFIG[type];
               return (
-                <span key={type} style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, color: allPostedType ? C.tan : C.amber, textDecoration: allPostedType ? "line-through" : "none", opacity: allPostedType ? 0.6 : 1 }}>
-                  {dc.symbol} {postedOfType}/{count}
+                <span key={type} style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color: allPostedType ? C.tan : C.amber, textDecoration: allPostedType ? "line-through" : "none", opacity: allPostedType ? 0.6 : 1 }}>
+                  {dc.symbol} {type} {postedOfType}/{count}
                 </span>
               );
             })}
