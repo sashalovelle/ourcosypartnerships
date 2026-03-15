@@ -1291,6 +1291,7 @@ export default function CollabCelestia() {
       // If event type, update the Google Calendar event
       if (c.collabType === 'event') {
         try {
+          console.log('Updating GCal event for:', c.brand, 'token:', freshToken ? 'present' : 'missing', 'calId:', gcalCalendarId);
           // Search by brand name and date range
           const timeMin = encodeURIComponent(new Date(c.startDate + 'T00:00:00.000Z').toISOString());
           const timeMax = encodeURIComponent(new Date((c.endDate || c.startDate) + 'T23:59:59.000Z').toISOString());
@@ -1298,7 +1299,9 @@ export default function CollabCelestia() {
             headers: { Authorization: `Bearer ${freshToken}` }
           });
           const data = await res.json();
+          console.log('GCal search result:', data.items?.length, 'events found');
           const ev = data.items?.find(e => e.summary === c.brand || e.extendedProperties?.private?.collabId === c.id);
+          console.log('Matching event:', ev ? ev.id : 'NOT FOUND');
           if (ev) {
             const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
             await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
