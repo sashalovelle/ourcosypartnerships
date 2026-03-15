@@ -1268,15 +1268,19 @@ export default function CollabCelestia() {
           if (oldItem && oldItem.date !== item.date) updateTaskDate(item.id, item.date, gcalToken);
         });
       }
-      // If event type, update the Google Calendar event date too
+      // If event type, update the Google Calendar event
       if (c.collabType === 'event') {
         try {
-          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?privateExtendedProperty=collabId%3D${c.id}`, {
+          // Search by brand name and date range
+          const timeMin = encodeURIComponent(new Date(c.startDate + 'T00:00:00.000Z').toISOString());
+          const timeMax = encodeURIComponent(new Date((c.endDate || c.startDate) + 'T23:59:59.000Z').toISOString());
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?q=${encodeURIComponent(c.brand)}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`, {
             headers: { Authorization: `Bearer ${gcalToken}` }
           });
           const data = await res.json();
-          if (data.items && data.items.length > 0) {
-            const ev = data.items[0];
+          const ev = data.items?.find(e => e.summary === c.brand || e.extendedProperties?.private?.collabId === c.id);
+          if (ev) {
+            const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
             await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
               method: 'PATCH',
               headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
@@ -1284,8 +1288,8 @@ export default function CollabCelestia() {
                 summary: editForm.brand,
                 location: editForm.location || '',
                 ...(editForm.startTime && editForm.endTime ? {
-                  start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
-                  end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
+                  start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz },
+                  end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz }
                 } : (() => {
                   const endDate = editForm.endDate || editForm.startDate;
                   const nextDay = new Date(endDate + 'T12:00:00');
@@ -1298,7 +1302,7 @@ export default function CollabCelestia() {
               })
             });
           }
-        } catch {}
+        } catch(e) { console.error('GCal update error:', e); }
       }
     }
 
