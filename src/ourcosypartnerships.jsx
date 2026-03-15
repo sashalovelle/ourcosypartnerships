@@ -2059,7 +2059,7 @@ export default function CollabCelestia() {
                 })}
               </div>
             </div>
-            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12 }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:12, width:"100%" }}>
               {offDays.length>0 ? (
                 <div>
                   <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan, marginBottom:12 }}>{offDays.length} REST DAY{offDays.length>1?"S":""}</div>
@@ -2076,7 +2076,7 @@ export default function CollabCelestia() {
                 <p style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:14, color:C.tan, fontStyle:"italic" }}>No rest days marked yet. Tap any day to flag it.</p>
               )}
               {/* Google Calendar connect */}
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8, flexShrink:0 }}>
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"flex-end", gap:8, flexShrink:0, marginLeft:"auto" }}>
                 {!gcalToken ? (
                   <button onClick={connectGoogleCalendar} disabled={gcalConnecting} className="cb"
                     style={{ display:"flex", alignItems:"center", gap:8, padding:"10px 18px", borderRadius:16, background:C.sand, border:`1px solid ${C.beige}`, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:.5, color:C.brown, transition:"all .2s" }}>
