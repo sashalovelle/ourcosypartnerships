@@ -448,8 +448,21 @@ function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirm
           <div style={{ display:"flex", justifyContent:"space-between", fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:.5, color:C.tan, marginBottom:4 }}>
             <span>PROGRESS</span><span style={{ color:C.amber }}>{posted}/{total}</span>
           </div>
-          <div style={{ height:3, background:C.beige, borderRadius:2 }}>
+          <div style={{ height:3, background:C.beige, borderRadius:2, marginBottom:6 }}>
             <div style={{ width:`${pct}%`, height:"100%", background:`linear-gradient(90deg,${C.gold},${C.goldLight})`, borderRadius:2, transition:"width .5s ease" }}/>
+          </div>
+          {/* Per type breakdown */}
+          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+            {breakdown.map(({type, count}) => {
+              const postedOfType = c.items?.filter(i=>i.type===type && i.status==="Posted").length||0;
+              const allPostedType = postedOfType === count;
+              const dc = DELIVERABLE_CONFIG[type];
+              return (
+                <span key={type} style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, color: allPostedType ? C.tan : C.amber, textDecoration: allPostedType ? "line-through" : "none", opacity: allPostedType ? 0.6 : 1 }}>
+                  {dc.symbol} {postedOfType}/{count}
+                </span>
+              );
+            })}
           </div>
         </div>
         <div style={{ display:"flex", gap:6, flexWrap:"wrap", marginTop:10, alignItems:"center" }}>
@@ -1005,7 +1018,7 @@ export default function CollabCelestia() {
     }
   }
 
-  async function deleteGcalEvents(collabId, token) {
+  async function deleteGcalEvents(collabId, token, brand) {
     if (!token) return;
     const listId = await getOrCreateTaskList(token);
     try {
@@ -1015,7 +1028,9 @@ export default function CollabCelestia() {
       const data = await res.json();
       if (data.items) {
         for (const task of data.items) {
-          if (task.notes?.includes(`Partnership ID: ${collabId}`)) {
+          const matchesId = task.notes?.includes(`Partnership ID: ${collabId}`);
+          const matchesBrand = brand && task.title?.startsWith(`${brand} •`);
+          if (matchesId || matchesBrand) {
             await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
               method: 'DELETE',
               headers: { Authorization: `Bearer ${token}` }
@@ -1192,7 +1207,7 @@ export default function CollabCelestia() {
     const collab = collabs.find(c => c.id === id);
     if (gcalToken) {
       // Delete tasks for all deliverables
-      deleteGcalEvents(id, gcalToken);
+      deleteGcalEvents(id, gcalToken, collab?.brand);
       // If it was an event type, also delete the Google Calendar event
       if (collab?.collabType === 'event') {
         try {
@@ -1264,26 +1279,65 @@ export default function CollabCelestia() {
     const c = editingCollab;
     const newDelivs = editForm.deliverables.filter(d=>d.count>0);
     const existingItems = c.items||[];
-    const newItems = autoSpread({ ...editForm, deliverables: newDelivs }, blackoutDates);
-    const statusMap = {};
-    existingItems.forEach((item,i) => { if (!statusMap[item.type]) statusMap[item.type]=[]; statusMap[item.type].push(item.status); });
-    newItems.forEach(item => {
-      const queue = statusMap[item.type];
-      if (queue && queue.length) item.status = queue.shift();
-    });
-    setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: newItems, links: editForm.links||{} }));
+
+    // Check if dates or deliverable counts changed
+    const oldDelivCounts = Object.keys(DELIVERABLE_CONFIG).map(t => existingItems.filter(i=>i.type===t).length).join(',');
+    const newDelivCounts = Object.keys(DELIVERABLE_CONFIG).map(t => newDelivs.filter(d=>d.type===t).reduce((s,d)=>s+d.count,0)).join(',');
+    const datesChanged = c.startDate !== editForm.startDate || c.endDate !== editForm.endDate;
+    const delivsChanged = oldDelivCounts !== newDelivCounts;
+    const needsReschedule = datesChanged || delivsChanged;
+
+    let finalItems;
+    if (datesChanged) {
+      // Dates changed — reschedule but preserve statuses where possible
+      const newItems = autoSpread({ ...editForm, deliverables: newDelivs }, blackoutDates);
+      const statusMap = {};
+      existingItems.forEach((item,i) => { if (!statusMap[item.type]) statusMap[item.type]=[]; statusMap[item.type].push(item.status); });
+      newItems.forEach(item => {
+        const queue = statusMap[item.type];
+        if (queue && queue.length) item.status = queue.shift();
+      });
+      finalItems = newItems;
+    } else if (delivsChanged) {
+      // Deliverable count changed — keep existing items, just add/remove extras
+      finalItems = [...existingItems];
+      Object.keys(DELIVERABLE_CONFIG).forEach(type => {
+        const existingOfType = finalItems.filter(i => i.type === type);
+        const newCount = newDelivs.find(d => d.type === type)?.count || 0;
+        const diff = newCount - existingOfType.length;
+        if (diff > 0) {
+          // Add new items at the end of the date range
+          for (let i = 0; i < diff; i++) {
+            finalItems.push({ type, date: editForm.endDate || editForm.startDate, status: 'Scheduled', id: `${Date.now()}-${Math.random().toString(36).substr(2,9)}-${i}` });
+          }
+        } else if (diff < 0) {
+          // Remove unposted items first
+          let toRemove = Math.abs(diff);
+          for (let i = finalItems.length - 1; i >= 0 && toRemove > 0; i--) {
+            if (finalItems[i].type === type && finalItems[i].status !== 'Posted') {
+              finalItems.splice(i, 1);
+              toRemove--;
+            }
+          }
+        }
+      });
+    } else {
+      // Nothing structural changed — keep existing items as-is
+      finalItems = existingItems;
+    }
+    setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: finalItems, links: editForm.links||{} }));
 
     // Sync to Google
     const freshToken = gcalToken ? await getFreshToken() : null;
     if (freshToken) {
       // If brand name changed, delete old tasks and recreate with new name
-      if (c.brand !== editForm.brand || newItems.length !== existingItems.length) {
-        await deleteGcalEvents(c.id, freshToken);
-        const newCollab = { ...editForm, id: c.id, items: newItems };
+      if (c.brand !== editForm.brand || needsReschedule) {
+        await deleteGcalEvents(c.id, freshToken, c.brand);
+        const newCollab = { ...editForm, id: c.id, items: finalItems };
         await createGcalEvents(newCollab, freshToken);
       } else {
         // Just update task dates for deliverables
-        newItems.forEach(item => {
+        finalItems.forEach(item => {
           const oldItem = existingItems.find(i => i.id === item.id);
           if (oldItem && oldItem.date !== item.date) updateTaskDate(item.id, item.date, freshToken);
         });
@@ -1682,8 +1736,9 @@ export default function CollabCelestia() {
                   const groups = {};
                   items.forEach(item => {
                     const key = item.brand+"||"+item.type;
-                    if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
+                    if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
                     groups[key].count++;
+                    if (item.status==="Posted") groups[key].postedCount++;
                   });
                   const chips = Object.values(groups);
                   const dayLabel = new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",day:"numeric"});
@@ -1698,7 +1753,7 @@ export default function CollabCelestia() {
                       </div>
                       <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
                         {chips.map(g => { const bp = brandHash(g.brand); return (
-                          <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap" }}>
+                          <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:g.postedCount>=g.count?0.45:1, textDecoration:g.postedCount>=g.count?"line-through":"none" }}>
                             {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                           </div>
                         );})}
@@ -1750,8 +1805,9 @@ export default function CollabCelestia() {
                           const groups = {};
                           items.forEach(item => {
                             const key = item.brand + "||" + item.type;
-                            if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
+                            if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
                             groups[key].count++;
+                            if (item.status==="Posted") groups[key].postedCount++;
                           });
                           const chips = Object.values(groups);
                           return (<>
@@ -1760,7 +1816,7 @@ export default function CollabCelestia() {
                                 draggable
                                 onDragStart={e=>{ e.stopPropagation(); setDragItem({ collabId:g.collabId, itemId:g.itemId, brand:g.brand, type:g.type }); e.dataTransfer.effectAllowed="move"; }}
                                 onDragEnd={()=>{ setDragItem(null); setDragOver(null); }}
-                                style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : 1, transition:"opacity .15s" }}>
+                                style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : g.postedCount>=g.count ? 0.45 : 1, textDecoration:g.postedCount>=g.count?"line-through":"none", transition:"opacity .15s" }}>
                                 {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
                               </div>
                             );})}
