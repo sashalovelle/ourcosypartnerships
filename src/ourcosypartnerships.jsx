@@ -870,7 +870,8 @@ export default function CollabCelestia() {
             method: 'POST',
             headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              summary: '✿ off day ✿',
+              summary: '✿ rest day ✿',
+              colorId: '5',
               start: { date: d },
               end: { date: d },
               extendedProperties: { private: { offDayDate: d } }
