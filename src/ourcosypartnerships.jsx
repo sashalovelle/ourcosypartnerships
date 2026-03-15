@@ -1304,26 +1304,27 @@ export default function CollabCelestia() {
           console.log('Matching event:', ev ? ev.id : 'NOT FOUND');
           if (ev) {
             const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
-            await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
-              method: 'PATCH',
-              headers: { Authorization: `Bearer ${gcalToken}`, 'Content-Type': 'application/json' },
+            const hasTime = editForm.startTime && editForm.endTime;
+            const endDate = editForm.endDate || editForm.startDate;
+            const nextDay = new Date(endDate + 'T12:00:00');
+            nextDay.setDate(nextDay.getDate() + 1);
+            const patchRes = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+              method: 'PUT',
+              headers: { Authorization: `Bearer ${freshToken}`, 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 summary: editForm.brand,
                 location: editForm.location || '',
-                ...(editForm.startTime && editForm.endTime ? {
+                extendedProperties: { private: { collabId: c.id, type: 'event' } },
+                ...(hasTime ? {
                   start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: tz },
                   end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: tz }
-                } : (() => {
-                  const endDate = editForm.endDate || editForm.startDate;
-                  const nextDay = new Date(endDate + 'T12:00:00');
-                  nextDay.setDate(nextDay.getDate() + 1);
-                  return {
-                    start: { date: editForm.startDate },
-                    end:   { date: nextDay.toISOString().split('T')[0] }
-                  };
-                })())
+                } : {
+                  start: { date: editForm.startDate },
+                  end:   { date: nextDay.toISOString().split('T')[0] }
+                })
               })
             });
+            console.log('GCal update status:', patchRes.status);
           }
         } catch(e) { console.error('GCal update error:', e); }
       }
