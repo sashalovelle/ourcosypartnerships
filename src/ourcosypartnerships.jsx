@@ -391,7 +391,7 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
   const hidden  = collabs.length - PAGE_SIZE;
   return (
     <div>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:12 }}>
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))", gap:12 }}>
         {visible.map((c, ci) => {
           const bp = brandHash(c.brand);
           return <CollabCard key={c.id} c={c} ci={ci} bp={bp} todayStr={todayStr} openEdit={openEdit} duplicateCollab={duplicateCollab} setConfirmDel={setConfirmDel} updateLinks={updateLinks} inp={inp}/>;
