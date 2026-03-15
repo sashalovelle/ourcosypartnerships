@@ -1286,10 +1286,15 @@ export default function CollabCelestia() {
                 ...(editForm.startTime && editForm.endTime ? {
                   start: { dateTime: `${editForm.startDate}T${editForm.startTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone },
                   end:   { dateTime: `${editForm.endDate||editForm.startDate}T${editForm.endTime}:00`, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone }
-                } : {
-                  start: { date: editForm.startDate },
-                  end:   { date: editForm.endDate || editForm.startDate }
-                })
+                } : (() => {
+                  const endDate = editForm.endDate || editForm.startDate;
+                  const nextDay = new Date(endDate + 'T12:00:00');
+                  nextDay.setDate(nextDay.getDate() + 1);
+                  return {
+                    start: { date: editForm.startDate },
+                    end:   { date: nextDay.toISOString().split('T')[0] }
+                  };
+                })())
               })
             });
           }
