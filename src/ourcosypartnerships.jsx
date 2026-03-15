@@ -1256,11 +1256,18 @@ export default function CollabCelestia() {
 
     // Sync to Google
     if (gcalToken) {
-      // Update task dates for deliverables
-      newItems.forEach(item => {
-        const old = existingItems.find(i => i.id === item.id);
-        if (old && old.date !== item.date) updateTaskDate(item.id, item.date, gcalToken);
-      });
+      // If brand name changed, delete old tasks and recreate with new name
+      if (c.brand !== editForm.brand || newItems.length !== existingItems.length) {
+        await deleteGcalEvents(c.id, gcalToken);
+        const newCollab = { ...editForm, id: c.id, items: newItems };
+        await createGcalEvents(newCollab, gcalToken);
+      } else {
+        // Just update task dates for deliverables
+        newItems.forEach(item => {
+          const oldItem = existingItems.find(i => i.id === item.id);
+          if (oldItem && oldItem.date !== item.date) updateTaskDate(item.id, item.date, gcalToken);
+        });
+      }
       // If event type, update the Google Calendar event date too
       if (c.collabType === 'event') {
         try {
