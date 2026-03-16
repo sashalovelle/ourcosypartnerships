@@ -1629,9 +1629,9 @@ export default function CollabCelestia() {
             {collabs.length === 0 && (
             <div style={{ display:"flex", flexDirection:"column", gap:12, marginBottom:40 }}>
               {[
-                { num:"01", title:"Add a partnership", desc:"Hit + NEW to add a brand deal. Set the date range, deliverables, fee, and paste in your brief." },
-                { num:"02", title:"AI schedules your content", desc:"The AI spreads your Reels, Stories, and Feed Posts evenly across the campaign period, skipping any blackout dates." },
-                { num:"03", title:"Track on the calendar", desc:"Head to Calendar to see your schedule. Click a day to update statuses, or drag chips to reschedule." },
+                { num:"01", title:"Add a partnership or event", desc:"Hit + NEW to add a brand deal or event. Choose Partnership for content collabs or Event for brand invites. Set dates, deliverables, fee and your brief." },
+                { num:"02", title:"AI schedules your content", desc:"The AI spreads your Reels, Stories, and Feed Posts evenly across the campaign period. Or switch to Manual to pick specific dates yourself." },
+                { num:"03", title:"Track on the calendar", desc:"Head to Calendar to see your full schedule. Tap a day to update statuses or move deliverables around." },
                 { num:"04", title:"Stay on top of payments", desc:"Use the Payments tab to log fees and track what's unpaid, invoiced, or paid — filtered by month." },
               ].map(step => (
                 <div key={step.num} style={{ display:"flex", gap:18, alignItems:"flex-start", padding:"18px 22px", background:`${C.cream}E0`, borderRadius:18, border:`1px solid ${C.beige}` }}>
@@ -2063,9 +2063,7 @@ export default function CollabCelestia() {
                 <div style={{ textAlign:"center", padding:"60px 0", color:C.tan, fontStyle:"italic", fontSize:15 }}>No partnerships active in {MONTHS[payMonth]} {payYear}.</div>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:14, padding:"8px 20px", fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan }}>
-                    <span>PARTNERSHIP</span><span style={{ textAlign:"right", minWidth:110 }}>AGREED FEE</span><span style={{ minWidth:100, textAlign:"right" }}>DUE DATE</span><span style={{ minWidth:120, textAlign:"right" }}>STATUS</span>
-                  </div>
+
                   {filtered.map((c,ci) => {
                     const bp = brandHash(c.brand);
                     const ps = PAYMENT_STATUS_CONFIG[c.paymentStatus||"Unpaid"];
@@ -2073,7 +2071,7 @@ export default function CollabCelestia() {
                     const posted = c.items?.filter(i=>i.status==="Posted").length||0;
                     const isOverdue = !c.gifted && c.paymentStatus!=="Paid" && c.paymentDue && new Date(c.paymentDue+"T12:00:00") < new Date(todayStr+"T12:00:00");
                     return (
-                      <div key={c.id} className="fi gh" style={{ background:`linear-gradient(148deg,${isOverdue?"#FDF0EE":bp.bg+"99"},${C.fog})`, border:`1px solid ${isOverdue?"#F0C4B8":bp.border}`, borderLeft:`4px solid ${isOverdue?"#E08070":bp.dot}`, borderRadius:18, padding:"18px 20px", display:"grid", gridTemplateColumns:"1fr auto auto auto", gap:14, alignItems:"center", animationDelay:`${ci*.05}s`, transition:"all .25s", boxShadow:"0 2px 12px rgba(0,0,0,.04)" }}>
+                      <div key={c.id} className="fi gh" style={{ background:`linear-gradient(148deg,${isOverdue?"#FDF0EE":bp.bg+"99"},${C.fog})`, border:`1px solid ${isOverdue?"#F0C4B8":bp.border}`, borderLeft:`4px solid ${isOverdue?"#E08070":bp.dot}`, borderRadius:18, padding:"18px 20px", display:"flex", flexDirection:"column", gap:12, animationDelay:`${ci*.05}s`, transition:"all .25s", boxShadow:"0 2px 12px rgba(0,0,0,.04)" }}>
                         <div>
                           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:4 }}>
                             <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:15, color:C.darkBrown, fontWeight:400 }}>{c.brand}</div>
@@ -2084,22 +2082,24 @@ export default function CollabCelestia() {
                           </div>
                           <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:.5, color:bp.text, opacity:.7 }}>{posted}/{total} POSTED</div>
                         </div>
+                        {/* Fee, Due, Status row */}
+                        <div style={{ display:"flex", gap:12, flexWrap:"wrap", alignItems:"flex-start" }}>
                         {/* Fee input or gifted badge */}
                         {c.gifted ? (
-                          <div style={{ textAlign:"right", minWidth:110 }}>
+                          <div>
                             <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5 }}>FEE</div>
-                            <div style={{ padding:"7px 12px", borderRadius:10, background:C.sand, border:`1px solid ${C.gold}`, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, color:C.amber, display:"inline-block" }}>✦ Gifted</div>
+                            <div style={{ padding:"7px 12px", borderRadius:10, background:C.sand, border:`1px solid ${C.gold}`, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, color:C.amber, display:"inline-block" }}>✦ Product Exchange</div>
                           </div>
                         ) : (
-                          <div style={{ textAlign:"right", minWidth:110 }}>
+                          <div>
                             <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5 }}>FEE (SGD)</div>
                             <input type="number" min="0" step="any" value={c.fee||""} onChange={e=>updatePayment(c.id,"fee",e.target.value)} placeholder="0.00"
-                              style={{ width:110, padding:"7px 10px", border:`1px solid ${bp.border}`, borderRadius:10, background:C.cream, color:C.darkBrown, fontFamily:"'Cormorant Garamond', serif", fontSize:13, textAlign:"right", outline:"none", MozAppearance:"textfield", WebkitAppearance:"none" }}/>
+                              style={{ width:100, padding:"7px 10px", border:`1px solid ${bp.border}`, borderRadius:10, background:C.cream, color:C.darkBrown, fontFamily:"'Cormorant Garamond', serif", fontSize:13, textAlign:"right", outline:"none", MozAppearance:"textfield", WebkitAppearance:"none" }}/>
                           </div>
                         )}
                         {/* Due date */}
-                        <div style={{ minWidth:100, textAlign:"right" }}>
-                          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5, textAlign:"right" }}>DUE</div>
+                        <div>
+                          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5 }}>DUE</div>
                           {c.gifted ? (
                             <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>N/A</div>
                           ) : c.paymentDue ? (
@@ -2112,16 +2112,17 @@ export default function CollabCelestia() {
                         </div>
                         {/* Payment status */}
                         {c.gifted ? (
-                          <div style={{ minWidth:120, textAlign:"right" }}>
-                            <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5, textAlign:"right" }}>PAYMENT</div>
+                          <div>
+                            <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5 }}>PAYMENT</div>
                             <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, color:C.tan, fontStyle:"italic" }}>N/A</div>
                           </div>
                         ) : (
-                          <div style={{ minWidth:120, textAlign:"right" }}>
-                            <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5, textAlign:"right" }}>PAYMENT</div>
+                          <div>
+                            <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:C.tan, marginBottom:5 }}>PAYMENT</div>
                             <Dropdown value={c.paymentStatus||"Unpaid"} onChange={v=>updatePayment(c.id,"paymentStatus",v)} options={Object.keys(PAYMENT_STATUS_CONFIG)} bg={ps.bg} textColor={ps.text} borderColor={ps.border}/>
                           </div>
                         )}
+                        </div>
                       </div>
                     );
                   })}
