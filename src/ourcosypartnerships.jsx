@@ -996,23 +996,27 @@ export default function CollabCelestia() {
     const grouped = {};
     items.forEach(item => {
       const key = item.date;
-      if (!grouped[key]) grouped[key] = { date: item.date, types: {}, ids: [] };
+      if (!grouped[key]) grouped[key] = { date: item.date, types: {}, ids: [], statuses: [] };
       grouped[key].types[item.type] = (grouped[key].types[item.type] || 0) + 1;
       grouped[key].ids.push(item.id);
+      grouped[key].statuses.push(item.status);
     });
     for (const group of Object.values(grouped)) {
-      const parts = Object.entries(group.types).map(([type, count]) => count > 1 ? `${type} x${count}` : type);
-      const title = `${collab.brand} • ${parts.join(' + ')}`;
+      const title = collab.brand;
       const due = new Date(group.date + 'T00:00:00.000Z').toISOString();
+      const allPosted = group.statuses.every(s => s === 'Posted');
       try {
+        const taskBody = {
+          title,
+          due,
+          notes: `Partnership ID: ${collab.id} | Item IDs: ${group.ids.join(',')}`,
+          status: allPosted ? 'completed' : 'needsAction',
+        };
+        if (allPosted) taskBody.completed = new Date().toISOString();
         await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            title,
-            due,
-            notes: `Partnership ID: ${collab.id} | Item IDs: ${group.ids.join(',')}`
-          })
+          body: JSON.stringify(taskBody)
         });
       } catch {}
     }
@@ -1029,7 +1033,7 @@ export default function CollabCelestia() {
       if (data.items) {
         for (const task of data.items) {
           const matchesId = task.notes?.includes(`Partnership ID: ${collabId}`);
-          const matchesBrand = brand && task.title?.startsWith(`${brand} •`);
+          const matchesBrand = brand && task.title === brand;
           if (matchesId || matchesBrand) {
             await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
               method: 'DELETE',
@@ -1050,7 +1054,13 @@ export default function CollabCelestia() {
       });
       const data = await res.json();
       if (data.items) {
-        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`) || t.notes?.includes(`Item IDs: ${itemId}`) || t.notes?.includes(`,${itemId}`) || t.notes?.includes(`${itemId},`));
+        // Find task by brand name and matching date
+        const taskDue = new Date(date + 'T00:00:00.000Z').toISOString().split('T')[0];
+        const task = data.items.find(t => 
+          t.title === brand && 
+          (t.notes?.includes(`Item IDs:`) || t.notes?.includes(`Item ID:`)) &&
+          t.due?.startsWith(taskDue)
+        );
         if (task) {
           await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
             method: 'PATCH',
@@ -1171,7 +1181,7 @@ export default function CollabCelestia() {
       return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
     }));
   }
-  async function updateTaskDate(itemId, newDate, token) {
+  async function updateTaskDate(itemId, newDate, token, brand) {
     if (!token) return;
     const listId = await getOrCreateTaskList(token);
     try {
@@ -1180,7 +1190,12 @@ export default function CollabCelestia() {
       });
       const data = await res.json();
       if (data.items) {
-        const task = data.items.find(t => t.notes?.includes(`Item ID: ${itemId}`));
+        // Find by item ID in notes, or by brand name as fallback
+        const task = data.items.find(t => 
+          t.notes?.includes(`Item IDs: `) && (
+            t.notes?.includes(itemId) || (brand && t.title === brand)
+          )
+        );
         if (task) {
           await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
             method: 'PATCH',
@@ -1193,24 +1208,15 @@ export default function CollabCelestia() {
   }
 
   function nudge(cId, iId, delta) {
-    let newDate;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => {
         if (i.id!==iId) return i;
         const d = new Date(i.date+"T12:00:00"); d.setDate(d.getDate()+delta);
-        newDate = d.toISOString().split("T")[0];
+        const newDate = d.toISOString().split("T")[0];
+        if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
         return { ...i, date: newDate };
       })
     }));
-    if (gcalToken) {
-      setCollabs(current => {
-        const collab = current.find(c => c.id===cId);
-        if (collab) {
-          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(collab, gcalToken));
-        }
-        return current;
-      });
-    }
   }
   async function delCollab(id) {
     const collab = collabs.find(c => c.id === id);
@@ -1237,37 +1243,24 @@ export default function CollabCelestia() {
     }
     setCollabs(p => p.filter(c => c.id!==id));
   }
-  async function moveItemToDate(cId, iId, newDate) {
+  function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
+    if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
     setCollabs(p => p.map(c => c.id!==cId ? c : {
       ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, date: newDate })
     }));
-    if (gcalToken) {
-      setCollabs(current => {
-        const collab = current.find(c => c.id===cId);
-        if (collab) {
-          const updatedCollab = { ...collab, items: collab.items.map(i => i.id!==iId ? i : { ...i, date: newDate }) };
-          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(updatedCollab, gcalToken));
-        }
-        return current;
-      });
-    }
   }
   function moveGroupToDate(cId, type, fromDate, newDate) {
     if (!newDate) return;
     setCollabs(p => p.map(c => c.id!==cId ? c : {
-      ...c, items: c.items.map(i => i.type===type && i.date===fromDate ? { ...i, date: newDate } : i)
-    }));
-    if (gcalToken) {
-      setCollabs(current => {
-        const collab = current.find(c => c.id===cId);
-        if (collab) {
-          const updatedCollab = { ...collab, items: collab.items.map(i => i.type===type && i.date===fromDate ? { ...i, date: newDate } : i) };
-          deleteGcalEvents(cId, gcalToken, collab.brand).then(() => createGcalEvents(updatedCollab, gcalToken));
+      ...c, items: c.items.map(i => {
+        if (i.type===type && i.date===fromDate) {
+          if (gcalToken) updateTaskDate(i.id, newDate, gcalToken);
+          return { ...i, date: newDate };
         }
-        return current;
-      });
-    }
+        return i;
+      })
+    }));
   }
   function updateItemNote(cId, iId, note) {
     setCollabs(p => p.map(c => c.id!==cId ? c : {
