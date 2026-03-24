@@ -388,25 +388,57 @@ const PAGE_SIZE = 8;
 function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirmDel, updateLinks, inp }) {
   const [showAll, setShowAll] = React.useState(false);
   const [showArchived, setShowArchived] = React.useState(false);
+  const [filter, setFilter] = React.useState('all');
 
-  const active   = collabs.filter(c => !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted')));
-  const archived = collabs.filter(c => c.items?.length > 0 && c.items.every(i => i.status === 'Posted'));
+  const todayStr2 = new Date().toISOString().split('T')[0];
+  const active   = collabs.filter(c => {
+    if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
+      return (c.endDate || c.startDate) >= todayStr2;
+    }
+    return !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted'));
+  });
+  const archived = collabs.filter(c => {
+    if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
+      return (c.endDate || c.startDate) < todayStr2;
+    }
+    return c.items?.length > 0 && c.items.every(i => i.status === 'Posted');
+  });
 
-  const visible = showAll ? active : active.slice(0, PAGE_SIZE);
-  const hidden  = active.length - PAGE_SIZE;
+  const filtered = active.filter(c => {
+    if (filter === 'partnerships') return c.collabType !== 'event';
+    if (filter === 'events') return c.collabType === 'event';
+    return true;
+  });
+
+  const visible = showAll ? filtered : filtered.slice(0, PAGE_SIZE);
+  const hidden  = filtered.length - PAGE_SIZE;
 
   return (
     <div>
+      {/* Filter tabs */}
+      <div style={{ display:"flex", gap:8, marginBottom:16 }}>
+        {[["all","All"],["partnerships","◈ Partnerships"],["events","✦ Events"]].map(([val, label]) => (
+          <button key={val} onClick={()=>{ setFilter(val); setShowAll(false); }} className="cb"
+            style={{ padding:"6px 14px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, background:filter===val?C.sand:"transparent", color:filter===val?C.amber:C.tan, border:filter===val?`1px solid ${C.beige}`:"1px solid transparent", transition:"all .2s" }}>
+            {label}
+          </button>
+        ))}
+      </div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))", gap:12 }}>
         {visible.map((c, ci) => {
           const bp = brandHash(c.brand);
           return <CollabCard key={c.id} c={c} ci={ci} bp={bp} todayStr={todayStr} openEdit={openEdit} duplicateCollab={duplicateCollab} setConfirmDel={setConfirmDel} updateLinks={updateLinks} inp={inp}/>;
         })}
+        {filtered.length === 0 && (
+          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:14, color:C.tan, fontStyle:"italic", padding:"20px 0" }}>
+            No {filter === 'events' ? 'events' : 'partnerships'} yet.
+          </div>
+        )}
       </div>
-      {active.length > PAGE_SIZE && (
+      {filtered.length > PAGE_SIZE && (
         <button onClick={()=>setShowAll(p=>!p)}
           style={{ marginTop:16, width:"100%", fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1, color:C.tan, background:"transparent", border:`1px dashed ${C.beige}`, borderRadius:12, padding:"10px 0", cursor:"pointer", fontStyle:"italic" }}>
-          {showAll ? "▲ show less" : `▾ show ${hidden} more partnership${hidden!==1?"s":""}`}
+          {showAll ? "▲ show less" : `▾ show ${hidden} more`}
         </button>
       )}
       {archived.length > 0 && (
@@ -2287,7 +2319,7 @@ export default function CollabCelestia() {
                   </div>
                 </div>
               )}
-              <div>
+              {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>DELIVERABLES</label>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   {editForm.deliverables.map((d,idx)=>(
@@ -2305,16 +2337,16 @@ export default function CollabCelestia() {
                     </div>
                   ))}
                 </div>
-              </div>
-              <div>
+              </div>}
+              {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>BRIEF / SCRIPT</label>
                 <textarea value={editForm.brief||""} onChange={e=>setEditForm(p=>({...p,brief:e.target.value}))} placeholder="Paste the brand's brief, key messages, dos & don'ts…" rows={3} style={{ ...inp, resize:"vertical" }}/>
-              </div>
+              </div>}
               <div>
                 <label style={lbl}>NOTES</label>
                 <textarea value={editForm.notes} onChange={e=>setEditForm(p=>({...p,notes:e.target.value}))} rows={2} style={{ ...inp, resize:"vertical" }}/>
               </div>
-              <div>
+              {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>AGREED FEE (SGD)</label>
                 <div style={{ display:"flex", gap:8, marginBottom: editForm.gifted ? 0 : 8 }}>
                   {!editForm.gifted && <input type="number" min="0" step="any" value={editForm.fee||""} onChange={e=>setEditForm(p=>({...p,fee:e.target.value}))} placeholder="e.g. 500" style={{...inp, flex:1}}/>}
@@ -2324,8 +2356,8 @@ export default function CollabCelestia() {
                   </button>
                 </div>
                 {editForm.gifted && <div style={{ fontSize:12, color:C.tan, fontStyle:"italic", marginTop:6 }}>Marked as product exchange — no payment will be tracked.</div>}
-              </div>
-              <div>
+              </div>}
+              {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>PAYMENT STATUS</label>
                 <div style={{ display:"flex", gap:8 }}>
                   {Object.keys(PAYMENT_STATUS_CONFIG).map(s => {
@@ -2339,14 +2371,14 @@ export default function CollabCelestia() {
                     );
                   })}
                 </div>
-              </div>
-              {!editForm.gifted && (
+              </div>}
+              {editingCollab?.collabType!=="event" && !editForm.gifted && (
                 <div>
                   <label style={lbl}>PAYMENT DUE DATE</label>
                   <DatePicker value={editForm.paymentDue||""} onChange={v=>setEditForm(p=>({...p,paymentDue:v}))} placeholder="Pick due date…" direction="down"/>
                 </div>
               )}
-              <div>
+              {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>LINKS</label>
                 <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                   {[{key:"briefLink",label:"Brief",icon:"✦",ph:"https://drive.google.com/…"},{key:"driveLink",label:"Contract",icon:"◈",ph:"https://drive.google.com/…"}].map(({key,label,icon,ph})=>(
@@ -2357,10 +2389,10 @@ export default function CollabCelestia() {
                   ))}
                   <MoreLinksToggle links={editForm.links||{}} onChange={(key,val)=>setEditForm(p=>({...p,links:{...(p.links||{}),[key]:val}}))} inp={inp}/>
                 </div>
-              </div>
-              <div style={{ padding:"11px 15px", background:C.sand, borderRadius:12, fontSize:13, color:C.tan, fontStyle:"italic", border:`1px solid ${C.beige}` }}>
+              </div>}
+              {editingCollab?.collabType!=="event" && <div style={{ padding:"11px 15px", background:C.sand, borderRadius:12, fontSize:13, color:C.tan, fontStyle:"italic", border:`1px solid ${C.beige}` }}>
                 ✦ Schedule will be rebuilt and existing progress statuses preserved where possible.
-              </div>
+              </div>}
               <div style={{ display:"flex", gap:12 }}>
                 <button onClick={()=>{ setEditingCollab(null); setEditForm(null); }} className="cb"
                   style={{ flex:1, padding:"13px", borderRadius:14, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1, background:C.sand, color:C.brown, border:`1px solid ${C.beige}`, transition:"all .2s" }}>
@@ -2490,8 +2522,8 @@ export default function CollabCelestia() {
                   </div>
                 )}
 
-                {/* Deliverables */}
-                <div>
+                {/* Deliverables — partnerships only */}
+                {formType==="partnership" && <div>
                   <label style={lbl}>DELIVERABLES</label>
                   <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {form.deliverables.map((d,idx)=>(
@@ -2523,7 +2555,7 @@ export default function CollabCelestia() {
                       </div>
                     ))}
                   </div>
-                </div>
+                </div>}
 
                 {/* Fee — partnerships only */}
                 {formType==="partnership" && <div>
@@ -2577,11 +2609,11 @@ export default function CollabCelestia() {
                   </div>
                 )}
 
-                {/* Brief */}
-                <div>
+                {/* Brief — partnerships only */}
+                {formType==="partnership" && <div>
                   <label style={lbl}>BRIEF / SCRIPT</label>
                   <textarea value={form.brief} onChange={e=>setForm(p=>({...p,brief:e.target.value}))} placeholder="Paste the brand's brief, key messages, dos & don'ts…" rows={3} style={{...inp,resize:"vertical"}}/>
-                </div>
+                </div>}
 
                 {/* Notes */}
                 <div>
@@ -2589,8 +2621,8 @@ export default function CollabCelestia() {
                   <textarea value={form.notes} onChange={e=>setForm(p=>({...p,notes:e.target.value}))} placeholder="Anything else to remember…" rows={2} style={{...inp,resize:"vertical"}}/>
                 </div>
 
-                {/* Links */}
-                <div>
+                {/* Links — partnerships only */}
+                {formType==="partnership" && <div>
                   <label style={lbl}>LINKS (OPTIONAL)</label>
                   <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                     {[{key:"briefLink",label:"Brief",icon:"✦",ph:"https://drive.google.com/…"},{key:"driveLink",label:"Contract",icon:"◈",ph:"https://drive.google.com/…"}].map(({key,label,icon,ph})=>(
@@ -2601,7 +2633,7 @@ export default function CollabCelestia() {
                     ))}
                     <MoreLinksToggle links={form.links||{}} onChange={(key,val)=>setForm(p=>({...p,links:{...(p.links||{}),[key]:val}}))} inp={inp}/>
                   </div>
-                </div>
+                </div>}
 
                 {/* Scheduling mode — only show if has deliverables or is partnership */}
                 {(formType==="partnership" || form.deliverables.some(d=>d.count>0)) && <div>
