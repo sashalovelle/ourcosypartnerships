@@ -1235,7 +1235,13 @@ export default function CollabCelestia() {
     setCollabs(p => p.map(c => {
       if (c.id!==cId) return c;
       const item = c.items.find(i => i.id===iId);
-      if (item && gcalToken) updateGcalEventStatus(iId, cId, c.brand, item.type, status, item.date, gcalToken);
+      if (item && gcalToken) {
+        // Check if all items of same type on same date will be posted after this update
+        const updatedItems = c.items.map(i => i.id!==iId ? i : { ...i, status });
+        const sameGroup = updatedItems.filter(i => i.type===item.type && i.date===item.date);
+        const allPosted = sameGroup.every(i => i.status==='Posted');
+        updateGcalEventStatus(iId, cId, c.brand, item.type, allPosted ? 'Posted' : 'Scheduled', item.date, gcalToken);
+      }
       return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
     }));
   }
@@ -1282,16 +1288,21 @@ export default function CollabCelestia() {
       // If it was an event type, also delete the Google Calendar event
       if (collab?.collabType === 'event') {
         try {
-          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?privateExtendedProperty=collabId%3D${id}`, {
+          // Search by brand name around the event date
+          const timeMin = encodeURIComponent(new Date((collab.startDate) + 'T00:00:00.000Z').toISOString());
+          const timeMax = encodeURIComponent(new Date((collab.endDate || collab.startDate) + 'T23:59:59.000Z').toISOString());
+          const res = await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events?q=${encodeURIComponent(collab.brand)}&timeMin=${timeMin}&timeMax=${timeMax}&singleEvents=true`, {
             headers: { Authorization: `Bearer ${gcalToken}` }
           });
           const data = await res.json();
           if (data.items) {
             for (const ev of data.items) {
-              await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
-                method: 'DELETE',
-                headers: { Authorization: `Bearer ${gcalToken}` }
-              });
+              if (ev.summary === collab.brand || ev.extendedProperties?.private?.collabId === id) {
+                await fetch(`https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(gcalCalendarId)}/events/${ev.id}`, {
+                  method: 'DELETE',
+                  headers: { Authorization: `Bearer ${gcalToken}` }
+                });
+              }
             }
           }
         } catch {}
