@@ -2391,7 +2391,7 @@ export default function CollabCelestia() {
                       <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                         <button onClick={()=>setEditForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:Math.max(0,x.count-1)}:x)}))}
                           style={{ width:30,height:30,borderRadius:8,background:C.cream,border:`1px solid ${C.beige}`,fontSize:18,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>−</button>
-                        <input type="number" min="0" value={d.count} onChange={e=>{ const v=Math.max(0,parseInt(e.target.value)||0); setEditForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:v}:x)})); }}
+                        <input type="number" min="0" value={d.count||""} placeholder="0" onChange={e=>{ const v=Math.max(0,parseInt(e.target.value)||0); setEditForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:v}:x)})); }}
                           style={{ width:52,textAlign:"center",fontFamily:"'Cormorant Garamond', serif",fontSize:18,fontWeight:600,color:C.darkBrown,background:C.parchment,border:`1.5px solid ${C.gold}88`,borderRadius:10,padding:"5px 0",outline:"none",MozAppearance:"textfield",WebkitAppearance:"none" }}/>
                         <button onClick={()=>setEditForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:x.count+1}:x)}))}
                           style={{ width:30,height:30,borderRadius:8,background:C.cream,border:`1px solid ${C.beige}`,fontSize:18,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>+</button>
@@ -2595,7 +2595,7 @@ export default function CollabCelestia() {
                           <div style={{ display:"flex", alignItems:"center", gap:8 }}>
                             <button onClick={()=>setForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:Math.max(0,x.count-1)}:x)}))}
                               style={{ width:30,height:30,borderRadius:8,background:C.cream,border:`1px solid ${C.beige}`,fontSize:18,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,flexShrink:0 }}>−</button>
-                            <input type="number" min="0" value={d.count} onChange={e=>{ const v=Math.max(0,parseInt(e.target.value)||0); setForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:v}:x)})); }}
+                            <input type="number" min="0" value={d.count||""} placeholder="0" onChange={e=>{ const v=Math.max(0,parseInt(e.target.value)||0); setForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:v}:x)})); }}
                               style={{ width:52, textAlign:"center", fontFamily:"'Cormorant Garamond', serif", fontSize:18, fontWeight:600, color:C.darkBrown, background:C.parchment, border:`1.5px solid ${C.gold}88`, borderRadius:10, padding:"5px 0", outline:"none", MozAppearance:"textfield", WebkitAppearance:"none" }}/>
                             <button onClick={()=>setForm(p=>({...p,deliverables:p.deliverables.map((x,i)=>i===idx?{...x,count:x.count+1}:x)}))}
                               style={{ width:30,height:30,borderRadius:8,background:C.cream,border:`1px solid ${C.beige}`,fontSize:18,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1,flexShrink:0 }}>+</button>
