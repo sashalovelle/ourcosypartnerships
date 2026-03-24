@@ -387,8 +387,14 @@ function DatePicker({ value, onChange, placeholder="Select date", direction="up"
 const PAGE_SIZE = 8;
 function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirmDel, updateLinks, inp }) {
   const [showAll, setShowAll] = React.useState(false);
-  const visible = showAll ? collabs : collabs.slice(0, PAGE_SIZE);
-  const hidden  = collabs.length - PAGE_SIZE;
+  const [showArchived, setShowArchived] = React.useState(false);
+
+  const active   = collabs.filter(c => !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted')));
+  const archived = collabs.filter(c => c.items?.length > 0 && c.items.every(i => i.status === 'Posted'));
+
+  const visible = showAll ? active : active.slice(0, PAGE_SIZE);
+  const hidden  = active.length - PAGE_SIZE;
+
   return (
     <div>
       <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))", gap:12 }}>
@@ -397,11 +403,29 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
           return <CollabCard key={c.id} c={c} ci={ci} bp={bp} todayStr={todayStr} openEdit={openEdit} duplicateCollab={duplicateCollab} setConfirmDel={setConfirmDel} updateLinks={updateLinks} inp={inp}/>;
         })}
       </div>
-      {collabs.length > PAGE_SIZE && (
+      {active.length > PAGE_SIZE && (
         <button onClick={()=>setShowAll(p=>!p)}
           style={{ marginTop:16, width:"100%", fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1, color:C.tan, background:"transparent", border:`1px dashed ${C.beige}`, borderRadius:12, padding:"10px 0", cursor:"pointer", fontStyle:"italic" }}>
           {showAll ? "▲ show less" : `▾ show ${hidden} more partnership${hidden!==1?"s":""}`}
         </button>
+      )}
+      {archived.length > 0 && (
+        <div style={{ marginTop:24 }}>
+          <button onClick={()=>setShowArchived(p=>!p)}
+            style={{ display:"flex", alignItems:"center", gap:8, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:2, color:C.tan, background:"transparent", border:"none", cursor:"pointer", padding:"8px 0", width:"100%" }}>
+            <span>{showArchived ? "▲" : "▾"}</span>
+            <span>COMPLETED ({archived.length})</span>
+            <div style={{ flex:1, height:1, background:C.beige, marginLeft:8 }}/>
+          </button>
+          {showArchived && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(min(100%,320px),1fr))", gap:12, marginTop:12, opacity:0.65 }}>
+              {archived.map((c, ci) => {
+                const bp = brandHash(c.brand);
+                return <CollabCard key={c.id} c={c} ci={ci} bp={bp} todayStr={todayStr} openEdit={openEdit} duplicateCollab={duplicateCollab} setConfirmDel={setConfirmDel} updateLinks={updateLinks} inp={inp}/>;
+              })}
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
@@ -992,24 +1016,24 @@ export default function CollabCelestia() {
     if (!token) return;
     const listId = await getOrCreateTaskList(token);
     const items = collab.items || [];
-    // Group items by date + brand (one task per brand per day)
+    // Group items by date + type (one task per type per day)
     const grouped = {};
     items.forEach(item => {
-      const key = item.date;
-      if (!grouped[key]) grouped[key] = { date: item.date, types: {}, ids: [], statuses: [] };
-      grouped[key].types[item.type] = (grouped[key].types[item.type] || 0) + 1;
+      const key = `${item.date}||${item.type}`;
+      if (!grouped[key]) grouped[key] = { date: item.date, type: item.type, count: 0, ids: [], statuses: [] };
+      grouped[key].count++;
       grouped[key].ids.push(item.id);
       grouped[key].statuses.push(item.status);
     });
     for (const group of Object.values(grouped)) {
-      const title = collab.brand;
+      const title = group.count > 1 ? `${collab.brand} • ${group.type} x${group.count}` : `${collab.brand} • ${group.type}`;
       const due = new Date(group.date + 'T00:00:00.000Z').toISOString();
       const allPosted = group.statuses.every(s => s === 'Posted');
       try {
         const taskBody = {
           title,
           due,
-          notes: `Partnership ID: ${collab.id} | Item IDs: ${group.ids.join(',')}`,
+          notes: `Partnership ID: ${collab.id} | Type: ${group.type} | Item IDs: ${group.ids.join(',')}`,
           status: allPosted ? 'completed' : 'needsAction',
         };
         if (allPosted) taskBody.completed = new Date().toISOString();
@@ -1033,7 +1057,7 @@ export default function CollabCelestia() {
       if (data.items) {
         for (const task of data.items) {
           const matchesId = task.notes?.includes(`Partnership ID: ${collabId}`);
-          const matchesBrand = brand && task.title === brand;
+          const matchesBrand = brand && task.title?.startsWith(`${brand} •`);
           if (matchesId || matchesBrand) {
             await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
               method: 'DELETE',
@@ -1054,11 +1078,11 @@ export default function CollabCelestia() {
       });
       const data = await res.json();
       if (data.items) {
-        // Find task by brand name and matching date
+        // Find task by brand+type title and matching date
         const taskDue = new Date(date + 'T00:00:00.000Z').toISOString().split('T')[0];
         const task = data.items.find(t => 
-          t.title === brand && 
-          (t.notes?.includes(`Item IDs:`) || t.notes?.includes(`Item ID:`)) &&
+          (t.title?.startsWith(`${brand} • ${type}`) || t.notes?.includes(`Type: ${type}`)) &&
+          t.notes?.includes(`Partnership ID:`) &&
           t.due?.startsWith(taskDue)
         );
         if (task) {
@@ -1192,9 +1216,7 @@ export default function CollabCelestia() {
       if (data.items) {
         // Find by item ID in notes, or by brand name as fallback
         const task = data.items.find(t => 
-          t.notes?.includes(`Item IDs: `) && (
-            t.notes?.includes(itemId) || (brand && t.title === brand)
-          )
+          t.notes?.includes(itemId)
         );
         if (task) {
           await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
