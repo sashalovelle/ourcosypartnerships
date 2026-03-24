@@ -1183,10 +1183,11 @@ export default function CollabCelestia() {
     if (formType === 'event') {
       const items = [];
       if (scheduleMode === 'manual') {
+        let idx = 0;
         Object.entries(manualSchedule).forEach(([date, typeMap]) => {
           Object.entries(typeMap).forEach(([type, count]) => {
             for (let i = 0; i < count; i++)
-              items.push({ type, date, status: 'Scheduled', id: `${Date.now()}-${Math.random()}` });
+              items.push({ type, date, status: 'Scheduled', id: `${Date.now()}-${Math.random().toString(36).substr(2,9)}-${idx++}` });
           });
         });
       }
@@ -1202,10 +1203,11 @@ export default function CollabCelestia() {
 
     if (scheduleMode === "manual") {
       const items = [];
+      let idx2 = 0;
       Object.entries(manualSchedule).forEach(([date, typeMap]) => {
         Object.entries(typeMap).forEach(([type, count]) => {
           for (let i = 0; i < count; i++)
-            items.push({ type, date, status: "Scheduled", id: `${Date.now()}-${Math.random().toString(36).substr(2,9)}-${items.length}` });
+            items.push({ type, date, status: "Scheduled", id: `${Date.now()}-${Math.random().toString(36).substr(2,9)}-${idx2++}` });
         });
       });
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
@@ -1801,23 +1803,73 @@ export default function CollabCelestia() {
                   });
                   const chips = Object.values(groups);
                   const dayLabel = new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",day:"numeric"});
+                  const dayDetailItems = dayItems(dateStr);
                   return (
-                    <div key={day} onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }}
-                      style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", borderRadius:14, background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, cursor:"pointer", transition:"background .15s" }}>
-                      <div style={{ minWidth:52, flexShrink:0 }}>
-                        <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
-                          ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
-                          {dayLabel}
-                        </span>
+                    <div key={day} style={{ borderRadius:14, overflow:"hidden", border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, transition:"all .15s" }}>
+                      <div onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }}
+                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", cursor:"pointer", transition:"background .15s" }}>
+                        <div style={{ minWidth:52, flexShrink:0 }}>
+                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
+                            ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
+                            {dayLabel}
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
+                          {chips.map(g => { const bp = brandHash(g.brand); return (
+                            <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?"line-through":"none" }}>
+                              {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                            </div>
+                          );})}
+                          {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
+                        </div>
+                        {(chips.length>0 || isOff) && <span style={{ color:C.tan, fontSize:10, flexShrink:0 }}>{isSel?"▲":"▾"}</span>}
                       </div>
-                      <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
-                        {chips.map(g => { const bp = brandHash(g.brand); return (
-                          <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?"line-through":"none" }}>
-                            {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                      {isSel && (()=>{
+                        const groups = {};
+                        dayDetailItems.forEach(item => {
+                          const key = item.collabId + "||" + item.type;
+                          if (!groups[key]) groups[key] = { collabId:item.collabId, brand:item.brand, type:item.type, items:[] };
+                          groups[key].items.push(item);
+                        });
+                        return (
+                          <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
+                            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
+                              <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan }}>{new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
+                              <button onClick={e=>{ e.stopPropagation(); toggleOffDay(dateStr); }} className="cb"
+                                style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1, padding:"4px 12px", borderRadius:14, background:offDays.includes(dateStr)?`${C.tan}33`:C.sand, color:offDays.includes(dateStr)?C.brown:C.amber, border:`1px solid ${offDays.includes(dateStr)?C.tan:C.beige}`, transition:"all .2s" }}>
+                                {offDays.includes(dateStr)?"✦ OFF DAY":"OFF DAY"}
+                              </button>
+                            </div>
+                            {Object.values(groups).map(g => {
+                              const bp = brandHash(g.brand);
+                              const count = g.items.length;
+                              const allSameStatus = g.items.every(i=>i.status===g.items[0].status);
+                              const groupStatus = allSameStatus ? g.items[0].status : "Mixed";
+                              const isPosted = groupStatus === "Posted";
+                              const isMixed = groupStatus === "Mixed";
+                              return (
+                                <div key={g.collabId+g.type} style={{ background:bp.bg, borderRadius:12, border:`1px solid ${bp.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
+                                  <div style={{ width:8, height:8, borderRadius:2, background:bp.dot, flexShrink:0 }}/>
+                                  <div style={{ flex:1, minWidth:0 }}>
+                                    <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:13, color:C.darkBrown }}>{g.brand}</span>
+                                    <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>
+                                    {count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
+                                  </div>
+                                  <button onClick={e=>{ e.stopPropagation(); const newStatus = isPosted ? "Scheduled" : "Posted"; count>1 ? markGroupStatus(g.collabId,g.type,dateStr,newStatus) : updStatus(g.collabId,g.items[0].id,newStatus); }} className="cb"
+                                    style={{ padding:"4px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
+                                      background: isPosted ? "#DDD8C8" : isMixed ? "#EDE5D5" : "#F2EDE3",
+                                      color: isPosted ? "#4A5030" : isMixed ? "#7A6050" : "#7A5A20",
+                                      border: isPosted ? "1px solid #8A9860" : isMixed ? "1px solid #C8A880" : "1px solid #D4AE72"
+                                    }}>
+                                    {isPosted ? (count>1?"✓ Posted all":"✓ Posted") : isMixed ? "Mixed" : (count>1?"Mark all posted":"Mark posted")}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {dayDetailItems.length === 0 && <p style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:13, color:C.tan, fontStyle:"italic" }}>Nothing scheduled.</p>}
                           </div>
-                        );})}
-                        {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
-                      </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}
