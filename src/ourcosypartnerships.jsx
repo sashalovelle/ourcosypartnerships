@@ -1282,6 +1282,8 @@ export default function CollabCelestia() {
   }
   async function delCollab(id) {
     const collab = collabs.find(c => c.id === id);
+    // Remove from UI immediately
+    setCollabs(p => p.filter(c => c.id!==id));
     if (gcalToken) {
       // Delete tasks for all deliverables
       deleteGcalEvents(id, gcalToken, collab?.brand);
@@ -1308,7 +1310,6 @@ export default function CollabCelestia() {
         } catch {}
       }
     }
-    setCollabs(p => p.filter(c => c.id!==id));
   }
   function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
