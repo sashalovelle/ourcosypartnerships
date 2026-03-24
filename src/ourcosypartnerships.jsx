@@ -1931,14 +1931,23 @@ export default function CollabCelestia() {
                                   </div>
                                   {g.items[0].note && <div style={{ fontSize:12, color:bp.text, fontStyle:"italic", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{g.items[0].note}</div>}
                                 </div>
-                                {/* Status dropdown */}
+                                {/* Status toggle button */}
                                 {(()=>{
-                                  const sc = STATUS_CONFIG[groupStatus==="Mixed"?"Scheduled":groupStatus];
-                                  const opts = [
-                                    ...(groupStatus==="Mixed"?[{value:"",label:"— Mixed —"}]:[]),
-                                    ...Object.keys(STATUS_CONFIG).map(s=>({value:s, label:count>1?s+" all":s}))
-                                  ];
-                                  return <Dropdown value={groupStatus==="Mixed"?"":groupStatus} onChange={v=>{ if(!v) return; count>1?markGroupStatus(g.collabId,g.type,selectedDay,v):updStatus(g.collabId,g.items[0].id,v); }} options={opts} bg={sc?.bg||"#F2EDE3"} textColor={sc?.text||C.amber} borderColor={sc?.border||C.beige} small/>;
+                                  const isPosted = groupStatus === "Posted";
+                                  const isMixed = groupStatus === "Mixed";
+                                  return (
+                                    <button onClick={()=>{
+                                      const newStatus = isPosted ? "Scheduled" : "Posted";
+                                      count>1 ? markGroupStatus(g.collabId,g.type,selectedDay,newStatus) : updStatus(g.collabId,g.items[0].id,newStatus);
+                                    }} className="cb"
+                                      style={{ padding:"5px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
+                                        background: isPosted ? "#DDD8C8" : isMixed ? "#EDE5D5" : "#F2EDE3",
+                                        color: isPosted ? "#4A5030" : isMixed ? "#7A6050" : "#7A5A20",
+                                        border: isPosted ? "1px solid #8A9860" : isMixed ? "1px solid #C8A880" : "1px solid #D4AE72"
+                                      }}>
+                                      {isPosted ? (count>1 ? "✓ Posted all" : "✓ Posted") : isMixed ? "Mixed" : (count>1 ? "Mark all posted" : "Mark posted")}
+                                    </button>
+                                  );
                                 })()}
                                 {/* Notes toggle */}
                                 <button onClick={()=>setExpandedGroup(p => p===(g.collabId+g.type) ? null : (g.collabId+g.type))} className="cb"
@@ -2573,8 +2582,8 @@ export default function CollabCelestia() {
                   )}
                 </div>}
 
-                {/* Payment status — partnerships only */}
-                {formType==="partnership" && <div>
+                {/* Payment status — partnerships only, hide when gifted */}
+                {formType==="partnership" && !form.gifted && <div>
                   <label style={lbl}>PAYMENT STATUS</label>
                   <div style={{ display:"flex", gap:8 }}>
                     {Object.keys(PAYMENT_STATUS_CONFIG).map(s=>{
@@ -2670,8 +2679,15 @@ export default function CollabCelestia() {
                   const selectedDates = Object.keys(manualSchedule).sort();
                   const totalByType = {};
                   activeDelivs.forEach(d=>{ totalByType[d.type]=Object.values(manualSchedule).reduce((s,day)=>s+(day[d.type]||0),0); });
-                  function toggleDate(ds){ setManualSchedule(p=>{ const next={...p}; if(next[ds]){ delete next[ds]; } else { const defaults={}; activeDelivs.forEach(d=>{ defaults[d.type]=1; }); next[ds]=defaults; } return next; }); }
-                  function setDayCount(ds,type,delta){ setManualSchedule(p=>{ const day={...(p[ds]||{})}; day[type]=Math.max(0,(day[type]||0)+delta); return {...p,[ds]:day}; }); }
+                  function toggleDate(ds){ setManualSchedule(p=>{ const next={...p}; if(next[ds]){ delete next[ds]; } else { const defaults={}; activeDelivs.forEach(d=>{ defaults[d.type]=0; }); next[ds]=defaults; } return next; }); }
+                  function setDayCount(ds,type,delta){ setManualSchedule(p=>{ 
+                    const day={...(p[ds]||{})};
+                    const totalOfType = activeDelivs.find(d=>d.type===type)?.count||0;
+                    const assignedElsewhere = Object.entries(p).filter(([k])=>k!==ds).reduce((s,[,v])=>s+(v[type]||0),0);
+                    const maxForDay = totalOfType - assignedElsewhere;
+                    day[type]=Math.min(maxForDay,Math.max(0,(day[type]||0)+delta)); 
+                    return {...p,[ds]:day}; 
+                  }); }
                   return (
                     <div style={{ display:"flex", flexDirection:"column", gap:14, contain:"none" }}>
                       {/* Per-type progress pills */}
