@@ -1212,7 +1212,7 @@ export default function CollabCelestia() {
       });
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) createGcalEvents(newCollab, gcalToken);
+      if (gcalToken) { getFreshToken().then(t => createGcalEvents(newCollab, t)); }
       resetForm(); setManualSchedule({}); setFormType("partnership"); setShowModal(false); setView("overview");
     } else {
       setAiLoading(true); setAiTip("");
@@ -1226,7 +1226,7 @@ export default function CollabCelestia() {
       } catch {}
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) createGcalEvents(newCollab, gcalToken);
+      if (gcalToken) { getFreshToken().then(t => createGcalEvents(newCollab, t)); }
       resetForm(); setManualSchedule({}); setFormType("partnership"); setAiLoading(false); setShowModal(false); setView("overview");
     }
   }
