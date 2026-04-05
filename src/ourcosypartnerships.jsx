@@ -1959,27 +1959,34 @@ export default function CollabCelestia() {
                               const dlStatus = collabs.find(c=>c.id===g.collabId)?.deadlineStatus||"Scheduled";
                               const sc = STATUS_CONFIG[g.isDeadlineChip ? dlStatus : groupStatus==="Mixed"?"Scheduled":groupStatus]||STATUS_CONFIG.Scheduled;
                               const btnLabel = g.isDeadlineChip
-                                ? (dlStatus==="Posted"?"✓ Posted":dlStatus==="Filmed"?"✓ Filmed":"Mark filmed")
+                                ? (dlStatus==="Posted" ? "✓ Posted" : "Mark posted")
                                 : groupStatus==="Posted" ? (count>1?"✓ Posted all":"✓ Posted") : groupStatus==="Filmed" ? (count>1?"✓ Filmed all":"✓ Filmed") : groupStatus==="Mixed" ? "Mixed" : (count>1?"Mark filmed":"Mark filmed");
+                              const dlPosted = dlStatus === "Posted";
                               return (
                                 <div key={g.collabId+g.type} style={{ background:bp.bg, borderRadius:12, border:`1px solid ${bp.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
                                   <div style={{ width:8, height:8, borderRadius:2, background:bp.dot, flexShrink:0 }}/>
                                   <div style={{ flex:1, minWidth:0 }}>
                                     <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:13, color:C.darkBrown }}>{g.brand}</span>
                                     {g.isDeadlineChip
-                                      ? <span style={{ color:C.tan, fontSize:13 }}> · deadline</span>
+                                      ? <span style={{ color:C.tan, fontSize:13 }}> · ◷ deadline</span>
                                       : <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>}
                                     {!g.isDeadlineChip && count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
                                   </div>
-                                  <button onClick={()=>{
-                                    if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
-                                    else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,dateStr,ns) : updStatus(g.collabId,g.items[0].id,ns); }
-                                  }} className="cb"
+                                  {g.isDeadlineChip ? (
+                                    <button onClick={()=>{ const ns = dlPosted ? "Scheduled" : "Posted"; setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }} className="cb"
+                                      style={{ padding:"4px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
+                                        background: dlPosted ? "#DDD8C8" : "#F2EDE3", color: dlPosted ? "#4A5030" : "#7A5A20", border: dlPosted ? "1px solid #8A9860" : "1px solid #D4AE72"
+                                      }}>
+                                      {btnLabel}
+                                    </button>
+                                  ) : (
+                                  <button onClick={()=>{ const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,dateStr,ns) : updStatus(g.collabId,g.items[0].id,ns); }} className="cb"
                                     style={{ padding:"4px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
                                       background:sc.bg, color:sc.text, border:`1px solid ${sc.border}`
                                     }}>
                                     {btnLabel}
                                   </button>
+                                  )}
                                   {!g.isDeadlineChip && <button onClick={()=>removeItemsFromDay(g.collabId, g.type, dateStr)} className="cb"
                                     style={{ width:26, height:26, borderRadius:8, background:"transparent", border:`1px solid ${C.beige}`, color:C.tan, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                                     ×
@@ -2110,13 +2117,14 @@ export default function CollabCelestia() {
                                 {(()=>{
                                   const nextStatus = s => s==="Scheduled"?"Filmed":s==="Filmed"?"Posted":"Scheduled";
                                   const dlStatus = collabs.find(c=>c.id===g.collabId)?.deadlineStatus||"Scheduled";
-                                  const sc = STATUS_CONFIG[g.isDeadlineChip ? dlStatus : groupStatus==="Mixed"?"Scheduled":groupStatus]||STATUS_CONFIG.Scheduled;
+                                  const dlPosted = dlStatus === "Posted";
+                                  const sc = STATUS_CONFIG[g.isDeadlineChip ? (dlPosted?"Posted":"Scheduled") : groupStatus==="Mixed"?"Scheduled":groupStatus]||STATUS_CONFIG.Scheduled;
                                   const btnLabel = g.isDeadlineChip
-                                    ? (dlStatus==="Posted"?"✓ Posted":dlStatus==="Filmed"?"✓ Filmed":"Mark filmed")
+                                    ? (dlPosted ? "✓ Posted" : "Mark posted")
                                     : groupStatus==="Posted" ? (count>1?"✓ Posted all":"✓ Posted") : groupStatus==="Filmed" ? (count>1?"✓ Filmed all":"✓ Filmed") : groupStatus==="Mixed" ? "Mixed" : (count>1?"Mark filmed":"Mark filmed");
                                   return (
                                     <button onClick={()=>{
-                                      if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
+                                      if (g.isDeadlineChip) { const ns = dlPosted ? "Scheduled" : "Posted"; setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
                                       else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,selectedDay,ns) : updStatus(g.collabId,g.items[0].id,ns); }
                                     }} className="cb"
                                       style={{ padding:"5px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
