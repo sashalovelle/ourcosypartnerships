@@ -823,7 +823,14 @@ export default function CollabCelestia() {
           headers: { apikey: import.meta.env.VITE_SUPABASE_ANON_KEY, Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` }
         });
         const d1 = await r1.json();
-        if (d1 && d1.length > 0) setCollabs(d1.map(r => r.data));
+        if (d1 && d1.length > 0) setCollabs(d1.map(r => {
+          const c = r.data;
+          if (c.items) {
+            const seen = new Set();
+            c.items = c.items.filter(i => { if (seen.has(i.id)) return false; seen.add(i.id); return true; });
+          }
+          return c;
+        }));
       } catch {}
       try {
         const r2 = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/blackouts?select=dates&order=created_at.desc&limit=1`, {
