@@ -1963,7 +1963,8 @@ export default function CollabCelestia() {
                                       : <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>}
                                     {!g.isDeadlineChip && count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
                                   </div>
-                                  <button onClick={e=>{ e.stopPropagation();
+                                  <button onClick={e=>{ e.stopPropagation(); e.preventDefault();
+                                    console.log('toggle clicked', g.brand, g.type, groupStatus, count, g.items.map(i=>i.id));
                                     if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
                                     else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,dateStr,ns) : updStatus(g.collabId,g.items[0].id,ns); }
                                   }} className="cb"
