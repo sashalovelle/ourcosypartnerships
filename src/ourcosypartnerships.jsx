@@ -25,8 +25,7 @@ const DELIVERABLE_CONFIG = {
 
 const STATUS_CONFIG = {
   Scheduled: { bg: "#F2EDE3", text: "#7A5A20", border: "#D4AE72" },
-  Filming:   { bg: "#EDE5D5", text: "#7A6050", border: "#C8A880" },
-  Editing:   { bg: "#E8E0CC", text: "#6A5830", border: "#B89850" },
+  Filmed:    { bg: "#EDE5D5", text: "#7A6050", border: "#C8A880" },
   Posted:    { bg: "#DDD8C8", text: "#4A5030", border: "#8A9860" },
 };
 
@@ -395,13 +394,13 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
       return (c.endDate || c.startDate) >= todayStr2;
     }
-    return !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted'));
+    return !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted' || i.status === 'Filmed'));
   });
   const archived = collabs.filter(c => {
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
       return (c.endDate || c.startDate) < todayStr2;
     }
-    return c.items?.length > 0 && c.items.every(i => i.status === 'Posted');
+    return c.items?.length > 0 && c.items.every(i => i.status === 'Posted' || i.status === 'Filmed');
   });
 
   const filtered = active.filter(c => {
@@ -466,13 +465,13 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
 function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirmDel, updateLinks, inp }) {
   const [expanded, setExpanded] = React.useState(false);
   const total  = c.items?.length||0;
-  const posted = c.items?.filter(i=>i.status==="Posted").length||0;
+  const posted = c.items?.filter(i=>i.status==="Posted" || i.status==="Filmed").length||0;
   const pct    = total ? Math.round((posted/total)*100) : 0;
   const breakdown = Object.keys(DELIVERABLE_CONFIG).map(t=>({ type:t, count:c.items?.filter(i=>i.type===t).length||0 })).filter(x=>x.count>0);
   const ps = PAYMENT_STATUS_CONFIG[c.paymentStatus||"Unpaid"];
   const isOverdue = !c.gifted && c.paymentStatus!=="Paid" && c.paymentDue && new Date(c.paymentDue+"T12:00:00") < new Date(todayStr+"T12:00:00");
   const isDeadlineOver = c.deadline && new Date(c.deadline+"T12:00:00") < new Date(todayStr+"T12:00:00");
-  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted");
+  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted" || i.status==="Filmed");
   const showDeadlineFlag = isDeadlineOver && !allPosted;
   return (
     <div className="fi gh"
@@ -510,7 +509,7 @@ function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirm
           {/* Per type breakdown */}
           <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
             {breakdown.map(({type, count}) => {
-              const postedOfType = c.items?.filter(i=>i.type===type && i.status==="Posted").length||0;
+              const postedOfType = c.items?.filter(i=>i.type===type && (i.status==="Posted" || i.status==="Filmed")).length||0;
               const allPostedType = postedOfType === count;
               const dc = DELIVERABLE_CONFIG[type];
               return (
@@ -741,6 +740,7 @@ export default function CollabCelestia() {
   const [calMonth, setCalMonth]       = useState(today.getMonth());
   const [blackoutDates, setBlackout]  = useState([]);
   const [offDays, setOffDays]         = useState([]);
+
   const [selectedDay, setSelectedDay] = useState(null);
   const [showModal, setShowModal]     = useState(false);
   const [confirmDel, setConfirmDel]   = useState(null);
@@ -760,6 +760,8 @@ export default function CollabCelestia() {
   const [scheduleMode, setScheduleMode] = useState("manual");
   const [formType, setFormType] = useState("partnership"); // "partnership" or "event"
   const [manualSchedule, setManualSchedule] = useState({});
+  const [editManualSchedule, setEditManualSchedule] = useState({});
+  const [showEditReschedule, setShowEditReschedule] = useState(false);
   const [gcalToken, setGcalToken]       = useState(() => localStorage.getItem('ocd-gcal-token') || null);
   const [gcalConnecting, setGcalConnecting] = useState(false);
   const [gcalCalendarId, setGcalCalendarId] = useState(() => localStorage.getItem('ocd-gcal-calid') || 'primary');
@@ -926,6 +928,12 @@ export default function CollabCelestia() {
             items.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
           }
         }
+      }
+    });
+    // Add deadline chips for partnerships with a deadline on this date
+    collabs.forEach(c => {
+      if (c.collabType !== 'event' && c.deadline === d) {
+        items.push({ id: c.id+'-deadline', brand: c.brand, type: 'Deadline', date: d, status: c.deadlineStatus||'Scheduled', collabId: c.id, isDeadlineChip: true });
       }
     });
     return items;
@@ -1131,6 +1139,34 @@ export default function CollabCelestia() {
     } catch {}
   }
 
+  async function syncDeadlineTask(collab, status, token) {
+    if (!token || !collab.deadline) return;
+    const listId = await getOrCreateTaskList(token);
+    try {
+      const res = await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=true&showHidden=true`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await res.json();
+      const title = `${collab.brand} • Post deadline`;
+      const existing = data.items?.find(t => t.title === title && t.notes?.includes(`Partnership ID: ${collab.id}`));
+      const due = new Date(collab.deadline + 'T00:00:00.000Z').toISOString();
+      const isPosted = status === 'Posted';
+      if (existing) {
+        await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${existing.id}`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status: isPosted ? 'completed' : 'needsAction', completed: isPosted ? new Date().toISOString() : null })
+        });
+      } else {
+        await fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title, due, notes: `Partnership ID: ${collab.id}`, status: isPosted ? 'completed' : 'needsAction' })
+        });
+      }
+    } catch {}
+  }
+
   function adjMonth(delta) {
     if (delta === -1) { calMonth === 0 ? (setCalMonth(11), setCalYear(y=>y-1)) : setCalMonth(m=>m-1); }
     else              { calMonth === 11 ? (setCalMonth(0), setCalYear(y=>y+1)) : setCalMonth(m=>m+1); }
@@ -1226,7 +1262,7 @@ export default function CollabCelestia() {
       } catch {}
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) { getFreshToken().then(t => createGcalEvents(newCollab, t)); }
+      if (gcalToken) { getFreshToken().then(t => { createGcalEvents(newCollab, t); if (newCollab.deadline) syncDeadlineTask(newCollab, 'Scheduled', t); }); }
       resetForm(); setManualSchedule({}); setFormType("partnership"); setAiLoading(false); setShowModal(false); setView("overview");
     }
   }
@@ -1287,6 +1323,8 @@ export default function CollabCelestia() {
     if (gcalToken) {
       // Delete tasks for all deliverables
       deleteGcalEvents(id, gcalToken, collab?.brand);
+      // Delete deadline task if exists
+      if (collab?.deadline) getFreshToken().then(t=>syncDeadlineTask({...collab,deadline:null}, 'Scheduled', t));
       // If it was an event type, also delete the Google Calendar event
       if (collab?.collabType === 'event') {
         try {
@@ -1311,6 +1349,38 @@ export default function CollabCelestia() {
       }
     }
   }
+  function removeItemsFromDay(cId, type, date) {
+    setCollabs(p => p.map(c => {
+      if (c.id !== cId) return c;
+      const newItems = c.items.filter(i => !(i.type === type && i.date === date));
+      return { ...c, items: newItems };
+    }));
+    // Also delete from Google Tasks
+    if (gcalToken) {
+      getOrCreateTaskList(gcalToken).then(listId => {
+        fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks?showCompleted=true&showHidden=true`, {
+          headers: { Authorization: `Bearer ${gcalToken}` }
+        }).then(r => r.json()).then(data => {
+          if (data.items) {
+            const collab = collabs.find(c => c.id === cId);
+            const taskDue = new Date(date + 'T00:00:00.000Z').toISOString().split('T')[0];
+            const task = data.items.find(t =>
+              t.title?.startsWith(`${collab?.brand} • ${type}`) &&
+              t.notes?.includes(`Partnership ID: ${cId}`) &&
+              t.due?.startsWith(taskDue)
+            );
+            if (task) {
+              fetch(`https://tasks.googleapis.com/tasks/v1/lists/${listId}/tasks/${task.id}`, {
+                method: 'DELETE',
+                headers: { Authorization: `Bearer ${gcalToken}` }
+              });
+            }
+          }
+        });
+      });
+    }
+  }
+
   function moveItemToDate(cId, iId, newDate) {
     if (!newDate) return;
     if (gcalToken) updateTaskDate(iId, newDate, gcalToken);
@@ -1353,6 +1423,7 @@ export default function CollabCelestia() {
     const deliverables = Object.keys(DELIVERABLE_CONFIG).map(type => ({
       type, count: c.items?.filter(i=>i.type===type).length||0, maxPerDay: 0
     }));
+    setEditManualSchedule({}); setShowEditReschedule(false);
     setEditForm({ brand: c.brand, startDate: c.startDate, endDate: c.endDate, singleDay: c.singleDay||false, notes: c.notes||"", fee: c.fee||"", feeBreakdown: c.feeBreakdown||{cash:"",storeCredit:"",voucher:""}, paymentStatus: c.paymentStatus||"Unpaid", gifted: c.gifted||false, brief: c.brief||"", paymentDue: c.paymentDue||"", deadline: c.deadline||"", links: c.links||{}, location: c.location||"", startTime: c.startTime||"", endTime: c.endTime||"", deliverables });
     setEditingCollab(c);
   }
@@ -1397,6 +1468,25 @@ export default function CollabCelestia() {
     } else {
       // Nothing changed — keep existing items as-is
       finalItems = existingItems;
+    }
+    // Apply manual reschedule if set
+    if (Object.keys(editManualSchedule).length > 0) {
+      const unposted = finalItems.filter(i => i.status !== 'Posted' && i.status !== 'Filmed');
+      const posted = finalItems.filter(i => i.status === 'Posted' || i.status === 'Filmed');
+      const rescheduled = [];
+      const typeQueues = {};
+      unposted.forEach(i => { if (!typeQueues[i.type]) typeQueues[i.type]=[]; typeQueues[i.type].push(i); });
+      Object.entries(editManualSchedule).forEach(([date, typeMap]) => {
+        Object.entries(typeMap).forEach(([type, count]) => {
+          for (let i = 0; i < count; i++) {
+            const item = typeQueues[type]?.shift();
+            if (item) rescheduled.push({ ...item, date });
+          }
+        });
+      });
+      // remaining unassigned keep their original dates
+      Object.values(typeQueues).flat().forEach(i => rescheduled.push(i));
+      finalItems = [...posted, ...rescheduled];
     }
     setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: finalItems, links: editForm.links||{} }));
 
@@ -1463,7 +1553,7 @@ export default function CollabCelestia() {
       }
     }
 
-    setEditingCollab(null); setEditForm(null);
+    setEditingCollab(null); setEditForm(null); setEditManualSchedule({}); setShowEditReschedule(false);
   }
 
   function markAllPosted(collabId, type, date) {
@@ -1657,7 +1747,7 @@ export default function CollabCelestia() {
                   upcoming.push({ date: i.date, label: `${DELIVERABLE_CONFIG[i.type]?.symbol} ${i.type}`, brand: c.brand, bp, type:"content" });
                 });
                 if (c.deadline && c.deadline >= todayStr && c.deadline <= in7Str) {
-                  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted");
+                  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted" || i.status==="Filmed");
                   if (!allPosted) upcoming.push({ date: c.deadline, label:"Content deadline", brand: c.brand, bp, type:"deadline" });
                 }
                 if (!c.gifted && c.paymentDue && c.paymentDue >= todayStr && c.paymentDue <= in7Str && c.paymentStatus!=="Paid") {
@@ -1809,9 +1899,9 @@ export default function CollabCelestia() {
                   const groups = {};
                   items.forEach(item => {
                     const key = item.brand+"||"+item.type;
-                    if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
+                    if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false, isDeadlineChip:item.isDeadlineChip||false };
                     groups[key].count++;
-                    if (item.status==="Posted") groups[key].postedCount++;
+                    if (item.status==="Posted" || item.status==="Filmed") groups[key].postedCount++;
                   });
                   const chips = Object.values(groups);
                   const dayLabel = new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",day:"numeric"});
@@ -1828,8 +1918,8 @@ export default function CollabCelestia() {
                         </div>
                         <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
                           {chips.map(g => { const bp = brandHash(g.brand); return (
-                            <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?"line-through":"none" }}>
-                              {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                            <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?"line-through":"none" }}>
+                              {g.isDeadlineChip ? "◷" : g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.isDeadlineChip ? " deadline" : g.count>1?` ×${g.count}`:""}
                             </div>
                           );})}
                           {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
@@ -1857,24 +1947,35 @@ export default function CollabCelestia() {
                               const count = g.items.length;
                               const allSameStatus = g.items.every(i=>i.status===g.items[0].status);
                               const groupStatus = allSameStatus ? g.items[0].status : "Mixed";
-                              const isPosted = groupStatus === "Posted";
-                              const isMixed = groupStatus === "Mixed";
+                              const nextStatus = s => s==="Scheduled"?"Filmed":s==="Filmed"?"Posted":"Scheduled";
+                              const dlStatus = collabs.find(c=>c.id===g.collabId)?.deadlineStatus||"Scheduled";
+                              const sc = STATUS_CONFIG[g.isDeadlineChip ? dlStatus : groupStatus==="Mixed"?"Scheduled":groupStatus]||STATUS_CONFIG.Scheduled;
+                              const btnLabel = g.isDeadlineChip
+                                ? (dlStatus==="Posted"?"✓ Posted":dlStatus==="Filmed"?"✓ Filmed":"Mark filmed")
+                                : groupStatus==="Posted" ? (count>1?"✓ Posted all":"✓ Posted") : groupStatus==="Filmed" ? (count>1?"✓ Filmed all":"✓ Filmed") : groupStatus==="Mixed" ? "Mixed" : (count>1?"Mark filmed":"Mark filmed");
                               return (
                                 <div key={g.collabId+g.type} style={{ background:bp.bg, borderRadius:12, border:`1px solid ${bp.border}`, padding:"10px 14px", display:"flex", alignItems:"center", gap:10 }}>
                                   <div style={{ width:8, height:8, borderRadius:2, background:bp.dot, flexShrink:0 }}/>
                                   <div style={{ flex:1, minWidth:0 }}>
                                     <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:13, color:C.darkBrown }}>{g.brand}</span>
-                                    <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>
-                                    {count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
+                                    {g.isDeadlineChip
+                                      ? <span style={{ color:C.tan, fontSize:13 }}> · deadline</span>
+                                      : <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>}
+                                    {!g.isDeadlineChip && count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
                                   </div>
-                                  <button onClick={e=>{ e.stopPropagation(); const newStatus = isPosted ? "Scheduled" : "Posted"; count>1 ? markGroupStatus(g.collabId,g.type,dateStr,newStatus) : updStatus(g.collabId,g.items[0].id,newStatus); }} className="cb"
+                                  <button onClick={e=>{ e.stopPropagation();
+                                    if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
+                                    else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,dateStr,ns) : updStatus(g.collabId,g.items[0].id,ns); }
+                                  }} className="cb"
                                     style={{ padding:"4px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
-                                      background: isPosted ? "#DDD8C8" : isMixed ? "#EDE5D5" : "#F2EDE3",
-                                      color: isPosted ? "#4A5030" : isMixed ? "#7A6050" : "#7A5A20",
-                                      border: isPosted ? "1px solid #8A9860" : isMixed ? "1px solid #C8A880" : "1px solid #D4AE72"
+                                      background:sc.bg, color:sc.text, border:`1px solid ${sc.border}`
                                     }}>
-                                    {isPosted ? (count>1?"✓ Posted all":"✓ Posted") : isMixed ? "Mixed" : (count>1?"Mark all posted":"Mark posted")}
+                                    {btnLabel}
                                   </button>
+                                  {!g.isDeadlineChip && <button onClick={e=>{ e.stopPropagation(); removeItemsFromDay(g.collabId, g.type, dateStr); }} className="cb"
+                                    style={{ width:26, height:26, borderRadius:8, background:"transparent", border:`1px solid ${C.beige}`, color:C.tan, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                    ×
+                                  </button>}
                                 </div>
                               );
                             })}
@@ -1928,9 +2029,9 @@ export default function CollabCelestia() {
                           const groups = {};
                           items.forEach(item => {
                             const key = item.brand + "||" + item.type;
-                            if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false };
+                            if (!groups[key]) groups[key] = { brand:item.brand, type:item.type, count:0, postedCount:0, collabId:item.collabId, itemId:item.id, isEventChip:item.isEventChip||false, isDeadlineChip:item.isDeadlineChip||false };
                             groups[key].count++;
-                            if (item.status==="Posted") groups[key].postedCount++;
+                            if (item.status==="Posted" || item.status==="Filmed") groups[key].postedCount++;
                           });
                           const chips = Object.values(groups);
                           return (<>
@@ -1940,7 +2041,7 @@ export default function CollabCelestia() {
                                 onDragStart={e=>{ e.stopPropagation(); setDragItem({ collabId:g.collabId, itemId:g.itemId, brand:g.brand, type:g.type }); e.dataTransfer.effectAllowed="move"; }}
                                 onDragEnd={()=>{ setDragItem(null); setDragOver(null); }}
                                 style={{ fontSize:isMobile?8:9, fontFamily:"'Cormorant Garamond', serif", letterSpacing:.2, background:bp.bg, borderRadius:4, padding:isMobile?"1px 3px":"2px 5px", color:bp.text, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", border:`1px solid ${bp.border}`, cursor:"grab", opacity: dragItem?.itemId===g.itemId ? 0.45 : (g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr)) ? 0.45 : 1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr))?"line-through":"none", transition:"opacity .15s" }}>
-                                {g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.count>1?` ×${g.count}`:""}
+                                {g.isDeadlineChip ? "◷" : g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.isDeadlineChip ? " deadline" : g.count>1?` ×${g.count}`:""}
                               </div>
                             );})}
                             {chips.length>3&&<div style={{ fontSize:9, color:C.tan, fontFamily:"'Cormorant Garamond', serif" }}>+{chips.length-3}</div>}
@@ -1990,34 +2091,43 @@ export default function CollabCelestia() {
                                 <div style={{ flex:1, minWidth:0 }}>
                                   <div>
                                     <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:13, color:C.darkBrown }}>{g.brand}</span>
-                                    <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>
-                                    {count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
+                                    {g.isDeadlineChip
+                                      ? <span style={{ color:C.tan, fontSize:13 }}> · ◷ deadline</span>
+                                      : <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>}
+                                    {!g.isDeadlineChip && count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
                                   </div>
-                                  {g.items[0].note && <div style={{ fontSize:12, color:bp.text, fontStyle:"italic", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{g.items[0].note}</div>}
+                                  {g.items[0].note && !g.isDeadlineChip && <div style={{ fontSize:12, color:bp.text, fontStyle:"italic", marginTop:2, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{g.items[0].note}</div>}
                                 </div>
                                 {/* Status toggle button */}
                                 {(()=>{
-                                  const isPosted = groupStatus === "Posted";
-                                  const isMixed = groupStatus === "Mixed";
+                                  const nextStatus = s => s==="Scheduled"?"Filmed":s==="Filmed"?"Posted":"Scheduled";
+                                  const dlStatus = collabs.find(c=>c.id===g.collabId)?.deadlineStatus||"Scheduled";
+                                  const sc = STATUS_CONFIG[g.isDeadlineChip ? dlStatus : groupStatus==="Mixed"?"Scheduled":groupStatus]||STATUS_CONFIG.Scheduled;
+                                  const btnLabel = g.isDeadlineChip
+                                    ? (dlStatus==="Posted"?"✓ Posted":dlStatus==="Filmed"?"✓ Filmed":"Mark filmed")
+                                    : groupStatus==="Posted" ? (count>1?"✓ Posted all":"✓ Posted") : groupStatus==="Filmed" ? (count>1?"✓ Filmed all":"✓ Filmed") : groupStatus==="Mixed" ? "Mixed" : (count>1?"Mark filmed":"Mark filmed");
                                   return (
                                     <button onClick={()=>{
-                                      const newStatus = isPosted ? "Scheduled" : "Posted";
-                                      count>1 ? markGroupStatus(g.collabId,g.type,selectedDay,newStatus) : updStatus(g.collabId,g.items[0].id,newStatus);
+                                      if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
+                                      else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,selectedDay,ns) : updStatus(g.collabId,g.items[0].id,ns); }
                                     }} className="cb"
                                       style={{ padding:"5px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
-                                        background: isPosted ? "#DDD8C8" : isMixed ? "#EDE5D5" : "#F2EDE3",
-                                        color: isPosted ? "#4A5030" : isMixed ? "#7A6050" : "#7A5A20",
-                                        border: isPosted ? "1px solid #8A9860" : isMixed ? "1px solid #C8A880" : "1px solid #D4AE72"
+                                        background:sc.bg, color:sc.text, border:`1px solid ${sc.border}`
                                       }}>
-                                      {isPosted ? (count>1 ? "✓ Posted all" : "✓ Posted") : isMixed ? "Mixed" : (count>1 ? "Mark all posted" : "Mark posted")}
+                                      {btnLabel}
                                     </button>
                                   );
                                 })()}
-                                {/* Notes toggle */}
-                                <button onClick={()=>setExpandedGroup(p => p===(g.collabId+g.type) ? null : (g.collabId+g.type))} className="cb"
+                                {/* Notes toggle — hide for deadline chips */}
+                                {!g.isDeadlineChip && <button onClick={()=>setExpandedGroup(p => p===(g.collabId+g.type) ? null : (g.collabId+g.type))} className="cb"
                                   style={{ width:26, height:26, borderRadius:7, background:expandedGroup===(g.collabId+g.type)?C.gold:C.cream, border:`1px solid ${C.beige}`, color:expandedGroup===(g.collabId+g.type)?C.cream:C.amber, fontSize:13, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0, transition:"all .2s" }}>
                                   ✎
-                                </button>
+                                </button>}
+                                {/* Delete group — hide for deadline chips */}
+                                {!g.isDeadlineChip && <button onClick={()=>removeItemsFromDay(g.collabId, g.type, selectedDay)} className="cb"
+                                  style={{ width:26, height:26, borderRadius:7, background:"transparent", border:`1px solid ${C.beige}`, color:C.tan, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                                  ×
+                                </button>}
                               </div>
                               {/* Row bottom: reschedule — individual rows when stacked */}
                               {count > 1 ? (
@@ -2452,11 +2562,60 @@ export default function CollabCelestia() {
                   <MoreLinksToggle links={editForm.links||{}} onChange={(key,val)=>setEditForm(p=>({...p,links:{...(p.links||{}),[key]:val}}))} inp={inp}/>
                 </div>
               </div>}
-              {editingCollab?.collabType!=="event" && <div style={{ padding:"11px 15px", background:C.sand, borderRadius:12, fontSize:13, color:C.tan, fontStyle:"italic", border:`1px solid ${C.beige}` }}>
-                ✦ Schedule will be rebuilt and existing progress statuses preserved where possible.
-              </div>}
+              {editingCollab?.collabType!=="event" && (
+                <div>
+                  <button onClick={()=>setShowEditReschedule(p=>!p)} className="cb"
+                    style={{ width:"100%", padding:"10px", borderRadius:12, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:1, background:showEditReschedule?C.sand:"transparent", color:C.amber, border:`1px dashed ${C.beige}`, transition:"all .2s" }}>
+                    {showEditReschedule ? "▲ hide reschedule" : "▾ move deliverables"}
+                  </button>
+                  {showEditReschedule && (() => {
+                    const activeDelivs = editForm.deliverables.filter(d=>d.count>0);
+                    const daysInRange = [];
+                    if (editForm.startDate && editForm.endDate) {
+                      let cur = new Date(editForm.startDate+"T12:00:00");
+                      const end = new Date(editForm.endDate+"T12:00:00");
+                      while (cur <= end) { daysInRange.push(cur.toISOString().split("T")[0]); cur.setDate(cur.getDate()+1); }
+                    }
+                    return (
+                      <div style={{ marginTop:8, display:"flex", flexDirection:"column", gap:6 }}>
+                        {daysInRange.map(ds => {
+                          const dayData = editManualSchedule[ds] || {};
+                          const label = new Date(ds+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",month:"short",day:"numeric"});
+                          const hasAny = activeDelivs.some(d=>(dayData[d.type]||0)>0);
+                          return (
+                            <div key={ds} style={{ background:hasAny?C.sand:C.cream, borderRadius:12, border:`1px solid ${hasAny?C.gold:C.beige}`, padding:"10px 14px" }}>
+                              <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:11, color:C.amber, marginBottom:6 }}>{label}</div>
+                              <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
+                                {activeDelivs.map(d => {
+                                  const dc = DELIVERABLE_CONFIG[d.type];
+                                  const cnt = dayData[d.type]||0;
+                                  const totalAssigned = Object.values(editManualSchedule).reduce((s,v)=>s+(v[d.type]||0),0);
+                                  const remaining = d.count - totalAssigned + cnt;
+                                  return (
+                                    <div key={d.type} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan }}>{dc.symbol}</span>
+                                      <button onClick={()=>setEditManualSchedule(p=>{ const day={...(p[ds]||{})}; day[d.type]=Math.max(0,(day[d.type]||0)-1); return {...p,[ds]:day}; })}
+                                        style={{ width:20,height:20,borderRadius:5,background:C.cream,border:`1px solid ${C.beige}`,fontSize:13,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>−</button>
+                                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, fontWeight:600, color:C.darkBrown, minWidth:14, textAlign:"center" }}>{cnt}</span>
+                                      <button onClick={()=>setEditManualSchedule(p=>{ const day={...(p[ds]||{})}; day[d.type]=Math.min(remaining,(day[d.type]||0)+1); return {...p,[ds]:day}; })}
+                                        style={{ width:20,height:20,borderRadius:5,background:C.cream,border:`1px solid ${C.beige}`,fontSize:13,color:C.amber,display:"flex",alignItems:"center",justifyContent:"center",lineHeight:1 }}>+</button>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
+                        <div style={{ padding:"8px 12px", background:`${C.gold}15`, borderRadius:10, fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>
+                          Only unposted items will be moved. Posted items stay in place.
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
               <div style={{ display:"flex", gap:12 }}>
-                <button onClick={()=>{ setEditingCollab(null); setEditForm(null); }} className="cb"
+                <button onClick={()=>{ setEditingCollab(null); setEditForm(null); setEditManualSchedule({}); setShowEditReschedule(false); }} className="cb"
                   style={{ flex:1, padding:"13px", borderRadius:14, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1, background:C.sand, color:C.brown, border:`1px solid ${C.beige}`, transition:"all .2s" }}>
                   CANCEL
                 </button>
