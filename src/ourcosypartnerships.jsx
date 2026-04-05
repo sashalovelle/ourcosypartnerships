@@ -915,7 +915,7 @@ export default function CollabCelestia() {
 
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
   const dayItems   = (d) => {
-    const items = allItems.filter(i => i.date === d);
+    const items = [...allItems.filter(i => i.date === d)];
     // Also include events (no deliverables) that fall on this date
     collabs.forEach(c => {
       if (c.collabType === 'event') {
