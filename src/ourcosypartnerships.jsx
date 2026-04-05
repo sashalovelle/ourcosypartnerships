@@ -1916,7 +1916,7 @@ export default function CollabCelestia() {
                   return (
                     <div key={day} style={{ borderRadius:14, border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, transition:"all .15s" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", transition:"background .15s" }}>
-                        <div onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }} style={{ display:"flex", alignItems:"center", gap:10, flex:1, cursor:"pointer" }}>
+                        <div onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }} style={{ display:"flex", alignItems:"center", gap:10, flex:1, cursor:"pointer" }} onClickCapture={e=>{ if(e.target.tagName==="BUTTON"||e.target.closest("button")) e.stopPropagation(); }}>
                           <div style={{ minWidth:52, flexShrink:0 }}>
                             <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
                               ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
