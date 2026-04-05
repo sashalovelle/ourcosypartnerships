@@ -1710,6 +1710,10 @@ export default function CollabCelestia() {
               {saveStatus==="saving" ? "SAVING…" : "✦ SAVED"}
             </span>
           )}
+          <button onClick={()=>{ if(window.confirm('Delete ALL partnerships? This cannot be undone.')) setCollabs([]); }} className="cb"
+            style={{ background:"#F0E0DC", color:"#C05040", padding:"8px 18px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1.5, transition:"all .2s", whiteSpace:"nowrap", border:"1px solid #F0C0B0" }}>
+            🗑 Clear All
+          </button>
           <button onClick={()=>setShowModal(true)} className="cb"
             style={{ background:`linear-gradient(135deg, ${C.gold}, ${C.amber})`, color:C.cream, padding:"8px 18px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1.5, boxShadow:`0 4px 20px ${C.gold}45`, transition:"all .2s", whiteSpace:"nowrap" }}>
             + NEW
