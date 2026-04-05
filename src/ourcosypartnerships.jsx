@@ -2088,7 +2088,7 @@ export default function CollabCelestia() {
                     const groups = {};
                     items.forEach(item => {
                       const key = item.collabId + "||" + item.type;
-                      if (!groups[key]) groups[key] = { collabId:item.collabId, brand:item.brand, type:item.type, items:[] };
+                      if (!groups[key]) groups[key] = { collabId:item.collabId, brand:item.brand, type:item.type, items:[], isDeadlineChip:item.isDeadlineChip||false, isEventChip:item.isEventChip||false };
                       groups[key].items.push(item);
                     });
                     return (
