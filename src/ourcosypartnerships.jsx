@@ -915,28 +915,28 @@ export default function CollabCelestia() {
 
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
   const dayItems   = (d) => {
-    const items = [...allItems.filter(i => i.date === d)];
+    const baseItems = allItems.filter(i => i.date === d);
+    const extraItems = [];
     // Also include events (no deliverables) that fall on this date
     collabs.forEach(c => {
       if (c.collabType === 'event') {
         const start = c.startDate;
         const end = c.endDate || c.startDate;
         if (d >= start && d <= end) {
-          // Only add event chip if no deliverable already covers this date for this collab
           const hasDelivOnDate = (c.items||[]).some(i => i.date === d);
           if (!hasDelivOnDate) {
-            items.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
+            extraItems.push({ id: c.id+'-event', brand: c.brand, type: 'Event', date: d, status: 'Scheduled', collabId: c.id, isEventChip: true });
           }
         }
       }
     });
-    // Add deadline chips for partnerships with a deadline on this date
+    // Add deadline chips
     collabs.forEach(c => {
       if (c.collabType !== 'event' && c.deadline === d) {
-        items.push({ id: c.id+'-deadline', brand: c.brand, type: 'Deadline', date: d, status: c.deadlineStatus||'Scheduled', collabId: c.id, isDeadlineChip: true });
+        extraItems.push({ id: c.id+'-deadline', brand: c.brand, type: 'Deadline', date: d, status: c.deadlineStatus||'Scheduled', collabId: c.id, isDeadlineChip: true });
       }
     });
-    return items;
+    return [...baseItems, ...extraItems];
   };
   const toggleBlk  = (d) => setBlackout(p => p.includes(d) ? p.filter(x => x!==d) : [...p, d]);
   const toggleOffDay = async (d) => {
