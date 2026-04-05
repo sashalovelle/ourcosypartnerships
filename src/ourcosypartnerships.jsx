@@ -1908,7 +1908,7 @@ export default function CollabCelestia() {
                   const dayDetailItems = dayItems(dateStr);
                   return (
                     <div key={day} style={{ borderRadius:14, border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, transition:"all .15s" }}>
-                      <div onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }}
+                      <div onClick={e=>{ if (!e.target.closest("[data-noclose]")) { setSelectedDay(isSel?null:dateStr); setPlacing(false); } }}
                         style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", cursor:"pointer", transition:"background .15s" }}>
                         <div style={{ minWidth:52, flexShrink:0 }}>
                           <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
@@ -1934,10 +1934,10 @@ export default function CollabCelestia() {
                           groups[key].items.push(item);
                         });
                         return (
-                          <div onClick={e=>e.stopPropagation()} style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
+                          <div data-noclose="true" style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                               <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan }}>{new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
-                              <button onMouseDown={e=>{ e.stopPropagation(); e.preventDefault(); toggleOffDay(dateStr); }} className="cb"
+                              <button onClick={()=>toggleOffDay(dateStr)} className="cb"
                                 style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1, padding:"4px 12px", borderRadius:14, background:offDays.includes(dateStr)?`${C.tan}33`:C.sand, color:offDays.includes(dateStr)?C.brown:C.amber, border:`1px solid ${offDays.includes(dateStr)?C.tan:C.beige}`, transition:"all .2s" }}>
                                 {offDays.includes(dateStr)?"✦ OFF DAY":"OFF DAY"}
                               </button>
@@ -1963,8 +1963,8 @@ export default function CollabCelestia() {
                                       : <span style={{ color:C.tan, fontSize:13 }}> · {DELIVERABLE_CONFIG[g.type]?.label}</span>}
                                     {!g.isDeadlineChip && count>1 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:bp.text, background:bp.border+"55", borderRadius:10, padding:"1px 7px", marginLeft:6 }}>×{count}</span>}
                                   </div>
-                                  <button onClick={e=>{ e.stopPropagation(); e.preventDefault(); console.log('btn clicked', g.isDeadlineChip, g.type);
-                                    if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); console.log('deadline toggle', g.collabId, dlStatus, '->', ns); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
+                                  <button onClick={()=>{
+                                    if (g.isDeadlineChip) { const ns = nextStatus(dlStatus); setCollabs(p=>p.map(c=>c.id===g.collabId?{...c,deadlineStatus:ns}:c)); if (gcalToken) { const col = collabs.find(c=>c.id===g.collabId); if (col) getFreshToken().then(t=>syncDeadlineTask(col,ns,t)); } }
                                     else { const ns = nextStatus(groupStatus==="Mixed"?"Scheduled":groupStatus); count>1 ? markGroupStatus(g.collabId,g.type,dateStr,ns) : updStatus(g.collabId,g.items[0].id,ns); }
                                   }} className="cb"
                                     style={{ padding:"4px 12px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:.5, whiteSpace:"nowrap", flexShrink:0, transition:"all .2s",
@@ -1972,7 +1972,7 @@ export default function CollabCelestia() {
                                     }}>
                                     {btnLabel}
                                   </button>
-                                  {!g.isDeadlineChip && <button onMouseDown={e=>{ e.stopPropagation(); e.preventDefault(); removeItemsFromDay(g.collabId, g.type, dateStr); }} className="cb"
+                                  {!g.isDeadlineChip && <button onClick={()=>removeItemsFromDay(g.collabId, g.type, dateStr)} className="cb"
                                     style={{ width:26, height:26, borderRadius:8, background:"transparent", border:`1px solid ${C.beige}`, color:C.tan, fontSize:14, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
                                     ×
                                   </button>}
