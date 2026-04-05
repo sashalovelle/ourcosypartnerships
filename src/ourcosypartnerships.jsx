@@ -1710,10 +1710,6 @@ export default function CollabCelestia() {
               {saveStatus==="saving" ? "SAVING…" : "✦ SAVED"}
             </span>
           )}
-          <button onClick={()=>{ if(window.confirm('Delete ALL partnerships? This cannot be undone.')) setCollabs([]); }} className="cb"
-            style={{ background:"#F0E0DC", color:"#C05040", padding:"8px 18px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1.5, transition:"all .2s", whiteSpace:"nowrap", border:"1px solid #F0C0B0" }}>
-            🗑 Clear All
-          </button>
           <button onClick={()=>setShowModal(true)} className="cb"
             style={{ background:`linear-gradient(135deg, ${C.gold}, ${C.amber})`, color:C.cream, padding:"8px 18px", borderRadius:20, fontFamily:"'Cormorant Garamond', serif", fontSize:11, letterSpacing:1.5, boxShadow:`0 4px 20px ${C.gold}45`, transition:"all .2s", whiteSpace:"nowrap" }}>
             + NEW
@@ -1946,7 +1942,7 @@ export default function CollabCelestia() {
                           groups[key].items.push(item);
                         });
                         return (
-                          <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
+                          <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }} onClick={e=>e.stopPropagation()}>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                               <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan }}>{new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
                               <button onClick={()=>toggleOffDay(dateStr)} className="cb"
