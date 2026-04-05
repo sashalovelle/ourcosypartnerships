@@ -1905,7 +1905,7 @@ export default function CollabCelestia() {
                   });
                   const chips = Object.values(groups);
                   const dayLabel = new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"short",day:"numeric"});
-                  const dayDetailItems = dayItems(dateStr);
+                  const dayDetailItems = items;
                   return (
                     <div key={day} style={{ borderRadius:14, border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, transition:"all .15s" }}>
                       <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", transition:"background .15s" }}>
