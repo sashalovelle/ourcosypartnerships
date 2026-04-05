@@ -1908,23 +1908,24 @@ export default function CollabCelestia() {
                   const dayDetailItems = dayItems(dateStr);
                   return (
                     <div key={day} style={{ borderRadius:14, border:`1px solid ${isSel?C.gold:chips.length>0?C.beige:"transparent"}`, transition:"all .15s" }}>
-                      <div onClick={e=>{ if (!e.target.closest("[data-noclose]")) { setSelectedDay(isSel?null:dateStr); setPlacing(false); } }}
-                        style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", cursor:"pointer", transition:"background .15s" }}>
-                        <div style={{ minWidth:52, flexShrink:0 }}>
-                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
-                            ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
-                            {dayLabel}
-                          </span>
+                      <div style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px", background:isSel?C.sand:isToday?`${C.goldLight}18`:isOff?`${C.beige}30`:chips.length>0?C.cream:"transparent", transition:"background .15s" }}>
+                        <div onClick={()=>{ setSelectedDay(isSel?null:dateStr); setPlacing(false); }} style={{ display:"flex", alignItems:"center", gap:10, flex:1, cursor:"pointer" }}>
+                          <div style={{ minWidth:52, flexShrink:0 }}>
+                            <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:isToday?12:11, fontWeight:isToday?600:400, color:isToday?C.amber:chips.length>0?C.darkBrown:C.tan,
+                              ...(isToday?{ background:C.gold, color:C.cream, borderRadius:20, padding:"2px 8px" }:{}) }}>
+                              {dayLabel}
+                            </span>
+                          </div>
+                          <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
+                            {chips.map(g => { const bp = brandHash(g.brand); return (
+                              <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?"line-through":"none" }}>
+                                {g.isDeadlineChip ? "◷" : g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.isDeadlineChip ? " deadline" : g.count>1?` ×${g.count}`:""}
+                              </div>
+                            );})}
+                            {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
+                          </div>
+                          {(chips.length>0 || isOff) && <span style={{ color:C.tan, fontSize:10, flexShrink:0 }}>{isSel?"▲":"▾"}</span>}
                         </div>
-                        <div style={{ display:"flex", gap:4, flexWrap:"wrap", flex:1 }}>
-                          {chips.map(g => { const bp = brandHash(g.brand); return (
-                            <div key={g.brand+g.type} style={{ fontSize:10, fontFamily:"'Cormorant Garamond', serif", background:bp.bg, borderRadius:6, padding:"2px 8px", color:bp.text, border:`1px solid ${bp.border}`, whiteSpace:"nowrap", opacity:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?0.45:1, textDecoration:(g.postedCount>=g.count || (g.isEventChip && dateStr<todayStr) || (g.isDeadlineChip && collabs.find(c=>c.id===g.collabId)?.deadlineStatus==='Posted'))?"line-through":"none" }}>
-                              {g.isDeadlineChip ? "◷" : g.isEventChip ? "◆" : DELIVERABLE_CONFIG[g.type]?.symbol} {g.brand}{g.isDeadlineChip ? " deadline" : g.count>1?` ×${g.count}`:""}
-                            </div>
-                          );})}
-                          {isOff && chips.length===0 && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:C.tan, fontStyle:"italic" }}>off day</span>}
-                        </div>
-                        {(chips.length>0 || isOff) && <span style={{ color:C.tan, fontSize:10, flexShrink:0 }}>{isSel?"▲":"▾"}</span>}
                       </div>
                       {isSel && (()=>{
                         const groups = {};
@@ -1934,7 +1935,7 @@ export default function CollabCelestia() {
                           groups[key].items.push(item);
                         });
                         return (
-                          <div data-noclose="true" style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
+                          <div style={{ padding:"12px 14px", borderTop:`1px solid ${C.beige}`, background:C.cream, display:"flex", flexDirection:"column", gap:8 }}>
                             <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:4 }}>
                               <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:C.tan }}>{new Date(dateStr+"T12:00:00").toLocaleDateString("en-US",{weekday:"long",month:"long",day:"numeric"})}</span>
                               <button onClick={()=>toggleOffDay(dateStr)} className="cb"
