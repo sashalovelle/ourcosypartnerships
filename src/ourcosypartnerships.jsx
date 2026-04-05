@@ -394,13 +394,13 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
       return (c.endDate || c.startDate) >= todayStr2;
     }
-    return !(c.items?.length > 0 && c.items.every(i => i.status === 'Posted' || i.status === 'Filmed'));
+    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted')); return !allDone;
   });
   const archived = collabs.filter(c => {
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
       return (c.endDate || c.startDate) < todayStr2;
     }
-    return c.items?.length > 0 && c.items.every(i => i.status === 'Posted' || i.status === 'Filmed');
+    return c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
   });
 
   const filtered = active.filter(c => {
@@ -471,7 +471,7 @@ function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirm
   const ps = PAYMENT_STATUS_CONFIG[c.paymentStatus||"Unpaid"];
   const isOverdue = !c.gifted && c.paymentStatus!=="Paid" && c.paymentDue && new Date(c.paymentDue+"T12:00:00") < new Date(todayStr+"T12:00:00");
   const isDeadlineOver = c.deadline && new Date(c.deadline+"T12:00:00") < new Date(todayStr+"T12:00:00");
-  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted" || i.status==="Filmed");
+  const allPosted = c.items?.length > 0 && (c.deadline ? (c.items.every(i=>i.status==="Posted" || i.status==="Filmed") && c.deadlineStatus==="Posted") : c.items.every(i=>i.status==="Posted"));
   const showDeadlineFlag = isDeadlineOver && !allPosted;
   return (
     <div className="fi gh"
@@ -1747,7 +1747,7 @@ export default function CollabCelestia() {
                   upcoming.push({ date: i.date, label: `${DELIVERABLE_CONFIG[i.type]?.symbol} ${i.type}`, brand: c.brand, bp, type:"content" });
                 });
                 if (c.deadline && c.deadline >= todayStr && c.deadline <= in7Str) {
-                  const allPosted = c.items?.length > 0 && c.items.every(i=>i.status==="Posted" || i.status==="Filmed");
+                  const allPosted = c.items?.length > 0 && (c.deadline ? (c.items.every(i=>i.status==="Posted" || i.status==="Filmed") && c.deadlineStatus==="Posted") : c.items.every(i=>i.status==="Posted"));
                   if (!allPosted) upcoming.push({ date: c.deadline, label:"Content deadline", brand: c.brand, bp, type:"deadline" });
                 }
                 if (!c.gifted && c.paymentDue && c.paymentDue >= todayStr && c.paymentDue <= in7Str && c.paymentStatus!=="Paid") {
@@ -2477,7 +2477,14 @@ export default function CollabCelestia() {
                 ))}
                 <div>
                   <label style={lbl}>CONTENT DEADLINE — OPTIONAL</label>
-                  <DatePicker value={editForm.deadline||""} onChange={v=>setEditForm(p=>({...p,deadline:v}))} placeholder="When must all content be delivered?" direction="down"/>
+                  <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+                    <div style={{ flex:1 }}>
+                      <DatePicker value={editForm.deadline||""} onChange={v=>setEditForm(p=>({...p,deadline:v}))} placeholder="When must all content be delivered?" direction="down"/>
+                    </div>
+                    {editForm.deadline && (
+                      <button onClick={()=>setEditForm(p=>({...p,deadline:""}))} style={{ width:30,height:30,borderRadius:8,background:C.sand,border:`1px solid ${C.beige}`,color:C.tan,fontSize:15,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0 }}>×</button>
+                    )}
+                  </div>
                 </div>
               </div>
               {editingCollab?.collabType==="event" && (
