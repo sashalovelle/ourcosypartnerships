@@ -1073,7 +1073,7 @@ export default function CollabCelestia() {
       grouped[key].statuses.push(item.status);
     });
     for (const group of Object.values(grouped)) {
-      const title = group.count > 1 ? `${collab.brand} • ${group.type} x${group.count}` : `${collab.brand} • ${group.type}`;
+      const title = group.count > 1 ? `${collab.brand} • ${group.type.toLowerCase()} x${group.count}` : `${collab.brand} • ${group.type.toLowerCase()}`;
       const due = new Date(group.date + 'T00:00:00.000Z').toISOString();
       const allPosted = group.statuses.every(s => s === 'Posted');
       try {
@@ -1137,7 +1137,7 @@ export default function CollabCelestia() {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              status: status === 'Posted' ? 'completed' : 'needsAction',
+              status: (status === 'Posted' || status === 'Filmed') ? 'completed' : 'needsAction',
               completed: status === 'Posted' ? new Date().toISOString() : null
             })
           });
@@ -1282,8 +1282,8 @@ export default function CollabCelestia() {
         // Check if all items of same type on same date will be posted after this update
         const updatedItems = c.items.map(i => i.id!==iId ? i : { ...i, status });
         const sameGroup = updatedItems.filter(i => i.type===item.type && i.date===item.date);
-        const allPosted = sameGroup.every(i => i.status==='Posted');
-        updateGcalEventStatus(iId, cId, c.brand, item.type, allPosted ? 'Posted' : 'Scheduled', item.date, gcalToken);
+        const allDone = sameGroup.every(i => i.status==='Posted' || i.status==='Filmed');
+        updateGcalEventStatus(iId, cId, c.brand, item.type, allDone ? 'Posted' : 'Scheduled', item.date, gcalToken);
       }
       return { ...c, items: c.items.map(i => i.id!==iId ? i : { ...i, status }) };
     }));
