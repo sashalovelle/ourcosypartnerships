@@ -394,6 +394,7 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
       return (c.endDate || c.startDate) >= todayStr2;
     }
+    if (c.pending) return true; // pending always active
     const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted')); return !allDone;
   });
   const archived = collabs.filter(c => {
@@ -479,7 +480,10 @@ function CollabCard({ c, ci, bp, todayStr, openEdit, duplicateCollab, setConfirm
       {/* ── Compact tile ── */}
       <div style={{ padding:"14px 16px" }}>
         <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:6 }}>
-          <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:19, fontWeight:400, color:C.darkBrown, lineHeight:1.1 }}>{c.brand}</div>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:19, fontWeight:400, color:C.darkBrown, lineHeight:1.1 }}>{c.brand}</div>
+            {c.pending && <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:1.5, color:"#7A6050", background:"#EDE5D5", border:"1px solid #C8A880", borderRadius:20, padding:"2px 8px" }}>PENDING</span>}
+          </div>
           <div style={{ display:"flex", gap:5, flexShrink:0, marginLeft:8 }}>
             <button onClick={()=>openEdit(c)} className="cb" title="Edit"
               style={{ width:26, height:26, borderRadius:7, border:`1px solid ${C.beige}`, background:C.cream, color:C.amber, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13 }}>✎</button>
@@ -1244,6 +1248,13 @@ export default function CollabCelestia() {
       return;
     }
 
+    if (scheduleMode === "pending") {
+      const newCollab = { ...form, endDate, id: newId, items: [], collabType: 'partnership', pending: true };
+      setCollabs(p => [...p, newCollab]);
+      resetForm(); setManualSchedule({}); setFormType("partnership"); setShowModal(false); setView("overview");
+      return;
+    }
+
     if (scheduleMode === "manual") {
       const items = [];
       let idx2 = 0;
@@ -1255,7 +1266,7 @@ export default function CollabCelestia() {
       });
       const newCollab = { ...form, endDate, id: newId, items, collabType: 'partnership' };
       setCollabs(p => [...p, newCollab]);
-      if (gcalToken) { getFreshToken().then(t => createGcalEvents(newCollab, t)); }
+      if (gcalToken) { getFreshToken().then(t => { createGcalEvents(newCollab, t); if (newCollab.deadline) syncDeadlineTask(newCollab, "Scheduled", t); }); }
       resetForm(); setManualSchedule({}); setFormType("partnership"); setShowModal(false); setView("overview");
     } else {
       setAiLoading(true); setAiTip("");
@@ -1495,7 +1506,8 @@ export default function CollabCelestia() {
       Object.values(typeQueues).flat().forEach(i => rescheduled.push(i));
       finalItems = [...posted, ...rescheduled];
     }
-    setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: finalItems, links: editForm.links||{} }));
+    const stillPending = finalItems.length === 0;
+    setCollabs(p => p.map(col => col.id!==c.id ? col : { ...col, ...editForm, items: finalItems, links: editForm.links||{}, pending: stillPending }));
 
     // Sync to Google
     const freshToken = gcalToken ? await getFreshToken() : null;
@@ -1560,6 +1572,8 @@ export default function CollabCelestia() {
       }
     }
 
+    // Sync deadline task if deadline exists
+    if (gcalToken && editForm.deadline) { getFreshToken().then(t => syncDeadlineTask({ ...editForm, id: c.id }, editForm.deadlineStatus||"Scheduled", t)); }
     setEditingCollab(null); setEditForm(null); setEditManualSchedule({}); setShowEditReschedule(false);
   }
 
@@ -2245,8 +2259,10 @@ export default function CollabCelestia() {
           const monthStart = new Date(payYear, payMonth, 1);
           const monthEnd   = new Date(payYear, payMonth+1, 0);
           const filtered   = collabs.filter(c => {
+            // Events only show in payments if they have a fee (not gifted, not empty)
+            if (c.collabType === 'event' && (c.gifted || !c.fee || parseFloat(c.fee) === 0)) return false;
             const s = new Date(c.startDate+"T12:00:00");
-            const e = new Date(c.endDate+"T12:00:00");
+            const e = new Date((c.endDate||c.startDate)+"T12:00:00");
             return s <= monthEnd && e >= monthStart;
           });
           const totalFee      = filtered.filter(c=>!c.gifted).reduce((s,c)=>s+(parseFloat(c.fee)||0),0);
@@ -2541,7 +2557,7 @@ export default function CollabCelestia() {
                 <label style={lbl}>NOTES</label>
                 <textarea value={editForm.notes} onChange={e=>setEditForm(p=>({...p,notes:e.target.value}))} rows={2} style={{ ...inp, resize:"vertical" }}/>
               </div>
-              {editingCollab?.collabType!=="event" && <div>
+              <div>
                 <label style={lbl}>AGREED FEE (SGD)</label>
                 <div style={{ display:"flex", gap:8, marginBottom: editForm.gifted ? 0 : 8 }}>
                   {!editForm.gifted && <input type="number" min="0" step="any" value={editForm.fee||""} onChange={e=>setEditForm(p=>({...p,fee:e.target.value}))} placeholder="e.g. 500" style={{...inp, flex:1}}/>}
@@ -2551,8 +2567,8 @@ export default function CollabCelestia() {
                   </button>
                 </div>
                 {editForm.gifted && <div style={{ fontSize:12, color:C.tan, fontStyle:"italic", marginTop:6 }}>Marked as product exchange — no payment will be tracked.</div>}
-              </div>}
-              {editingCollab?.collabType!=="event" && <div>
+              </div>
+              {!editForm.gifted && <div>
                 <label style={lbl}>PAYMENT STATUS</label>
                 <div style={{ display:"flex", gap:8 }}>
                   {Object.keys(PAYMENT_STATUS_CONFIG).map(s => {
@@ -2567,7 +2583,7 @@ export default function CollabCelestia() {
                   })}
                 </div>
               </div>}
-              {editingCollab?.collabType!=="event" && !editForm.gifted && (
+              {!editForm.gifted && (
                 <div>
                   <label style={lbl}>PAYMENT DUE DATE</label>
                   <DatePicker value={editForm.paymentDue||""} onChange={v=>setEditForm(p=>({...p,paymentDue:v}))} placeholder="Pick due date…" direction="down"/>
@@ -2585,6 +2601,12 @@ export default function CollabCelestia() {
                   <MoreLinksToggle links={editForm.links||{}} onChange={(key,val)=>setEditForm(p=>({...p,links:{...(p.links||{}),[key]:val}}))} inp={inp}/>
                 </div>
               </div>}
+              {editingCollab?.pending && (
+                <div style={{ padding:"11px 15px", background:"#EDE5D5", borderRadius:12, fontSize:13, color:"#7A6050", border:"1px solid #C8A880", display:"flex", flexDirection:"column", gap:8 }}>
+                  <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, letterSpacing:1.5 }}>PENDING PARTNERSHIP</div>
+                  <div style={{ fontSize:12 }}>Use "move deliverables" below to assign dates and activate this partnership.</div>
+                </div>
+              )}
               {editingCollab?.collabType!=="event" && (
                 <div>
                   <button onClick={()=>setShowEditReschedule(p=>!p)} className="cb"
@@ -2800,8 +2822,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>}
 
-                {/* Fee — partnerships only */}
-                {formType==="partnership" && <div>
+                {/* Fee — partnerships and events */}
+                <div>
                   <label style={lbl}>AGREED FEE (SGD) — OPTIONAL</label>
                   <div style={{ display:"flex", gap:8, marginBottom:8 }}>
                     <button onClick={()=>setForm(p=>({...p,gifted:!p.gifted,fee:"",feeBreakdown:{cash:"",storeCredit:"",voucher:""}}))} className="cb"
@@ -2824,10 +2846,10 @@ export default function CollabCelestia() {
                       {(()=>{ const fb=form.feeBreakdown||{}; const parts=[]; if(fb.cash&&parseFloat(fb.cash)>0) parts.push(`$${parseFloat(fb.cash).toLocaleString()} cash`); if(fb.storeCredit&&parseFloat(fb.storeCredit)>0) parts.push(`$${parseFloat(fb.storeCredit).toLocaleString()} store credit`); if(fb.voucher&&parseFloat(fb.voucher)>0) parts.push(`$${parseFloat(fb.voucher).toLocaleString()} vouchers`); const total=parts.length>0?[fb.cash,fb.storeCredit,fb.voucher].filter(Boolean).reduce((s,v)=>s+parseFloat(v||0),0):0; return parts.length>0?(<div style={{ display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",background:C.sand,borderRadius:10,border:`1px solid ${C.beige}` }}><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:10,color:C.tan }}>{parts.join(" + ")}</span><span style={{ fontFamily:"'Cormorant Garamond', serif",fontSize:12,color:C.amber,fontWeight:500 }}>= ${total.toLocaleString()}</span></div>):null; })()}
                     </div>
                   )}
-                </div>}
+                </div>
 
-                {/* Payment status — partnerships only, hide when gifted */}
-                {formType==="partnership" && !form.gifted && <div>
+                {/* Payment status — hide when gifted */}
+                {!form.gifted && <div>
                   <label style={lbl}>PAYMENT STATUS</label>
                   <div style={{ display:"flex", gap:8 }}>
                     {Object.keys(PAYMENT_STATUS_CONFIG).map(s=>{
@@ -2837,8 +2859,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>}
 
-                {/* Payment due — partnerships only */}
-                {formType==="partnership" && !form.gifted && (
+                {/* Payment due */}
+                {!form.gifted && (
                   <div>
                     <label style={lbl}>PAYMENT DUE DATE — OPTIONAL</label>
                     <div style={{ display:"flex", gap:8, alignItems:"center" }}>
@@ -2882,7 +2904,7 @@ export default function CollabCelestia() {
                 {(formType==="partnership" || form.deliverables.some(d=>d.count>0)) && <div>
                   <label style={lbl}>SCHEDULING MODE</label>
                   <div style={{ display:"flex", gap:8 }}>
-                    {[["manual","◈ Manual"],["ai","✦ AI Schedule"]].map(([mode,label])=>(
+                    {[["manual","◈ Manual"],["ai","✦ AI Schedule"],["pending","◷ Schedule Later"]].map(([mode,label])=>(
                       <button key={mode} onClick={()=>{ setScheduleMode(mode); setManualSchedule({}); }} className="cb"
                         style={{ flex:1,padding:"10px 8px",borderRadius:12,fontFamily:"'Cormorant Garamond', serif",fontSize:10,letterSpacing:1,background:scheduleMode===mode?C.sand:C.cream,color:scheduleMode===mode?C.amber:C.tan,border:`1.5px solid ${scheduleMode===mode?C.gold:C.beige}`,transition:"all .2s" }}>
                         {label}
