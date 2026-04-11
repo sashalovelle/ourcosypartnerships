@@ -1237,8 +1237,14 @@ export default function CollabCelestia() {
 
     if (formType === 'event') {
       const items = [];
+      // Add deliverables assigned to the event date
+      const delivs = form.deliverables.filter(d => d.count > 0);
+      let idx = 0;
+      delivs.forEach(d => {
+        for (let i = 0; i < d.count; i++)
+          items.push({ type: d.type, date: form.startDate, status: 'Scheduled', id: `${Date.now()}-${Math.random().toString(36).substr(2,9)}-${idx++}` });
+      });
       if (scheduleMode === 'manual') {
-        let idx = 0;
         Object.entries(manualSchedule).forEach(([date, typeMap]) => {
           Object.entries(typeMap).forEach(([type, count]) => {
             for (let i = 0; i < count; i++)
@@ -2577,8 +2583,8 @@ export default function CollabCelestia() {
                   </div>
                 </div>
               )}
-              {editingCollab?.collabType!=="event" && <div>
-                <label style={lbl}>DELIVERABLES</label>
+              <div>
+                <label style={lbl}>DELIVERABLES {editingCollab?.collabType==="event" ? "(OPTIONAL)" : ""}</label>
                 <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                   {editForm.deliverables.map((d,idx)=>(
                     <div key={d.type} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"13px 18px", background:DELIVERABLE_CONFIG[d.type].color, borderRadius:16, border:`1px solid ${C.beige}` }}>
@@ -2594,7 +2600,7 @@ export default function CollabCelestia() {
                     </div>
                   ))}
                 </div>
-              </div>}
+              </div>
               {editingCollab?.collabType!=="event" && <div>
                 <label style={lbl}>BRIEF / SCRIPT</label>
                 <textarea value={editForm.brief||""} onChange={e=>setEditForm(p=>({...p,brief:e.target.value}))} placeholder="Paste the brand's brief, key messages, dos & don'ts…" rows={3} style={{ ...inp, resize:"vertical" }}/>
@@ -2835,8 +2841,8 @@ export default function CollabCelestia() {
                 )}
 
                 {/* Deliverables — partnerships only */}
-                {formType==="partnership" && <div>
-                  <label style={lbl}>DELIVERABLES</label>
+                <div>
+                  <label style={lbl}>DELIVERABLES {formType==="event" ? "(OPTIONAL)" : ""}</label>
                   <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
                     {form.deliverables.map((d,idx)=>(
                       <div key={d.type} style={{ background:DELIVERABLE_CONFIG[d.type].color, borderRadius:16, border:`1px solid ${C.beige}`, overflow:"hidden" }}>
@@ -2866,7 +2872,7 @@ export default function CollabCelestia() {
                       </div>
                     ))}
                   </div>
-                </div>}
+                </div>
 
                 {/* Fee — partnerships and events */}
                 <div>
