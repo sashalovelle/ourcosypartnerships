@@ -395,7 +395,7 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.collabType === 'event') {
       // Events with no deliverables: archive when date passed
       if (!c.items || c.items.length === 0) return (c.endDate || c.startDate) >= todayStr2;
-      // Events with deliverables: archive when all posted (same as partnerships)
+      // Events with deliverables: stay active until all posted regardless of date
       return !c.items.every(i => i.status === 'Posted');
     }
     const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
@@ -405,7 +405,9 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.pending) return false;
     if (c.collabType === 'event') {
       if (!c.items || c.items.length === 0) return (c.endDate || c.startDate) < todayStr2;
-      return c.items.every(i => i.status === 'Posted');
+      // Events with deliverables archive when all posted
+      const allEventDone = c.items.every(i => i.status === 'Posted') && (!c.deadline || c.deadlineStatus === 'Posted');
+      return allEventDone;
     }
     return c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
   });
@@ -949,7 +951,7 @@ export default function CollabCelestia() {
     });
     // Add deadline chips
     collabs.forEach(c => {
-      if (c.collabType !== 'event' && c.deadline === d) {
+      if (c.deadline === d) {
         extraItems.push({ id: c.id+'-deadline', brand: c.brand, type: 'Deadline', date: d, status: c.deadlineStatus||'Scheduled', collabId: c.id, isDeadlineChip: true });
       }
     });
@@ -1837,7 +1839,7 @@ export default function CollabCelestia() {
             {/* Brand colour legend */}
             {collabs.length > 0 && (
               <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
-                {[...new Map(collabs.map(c=>[c.brand.trim().toLowerCase(), c.brand.trim()])).values()].map(brand => {
+                {[...new Map(collabs.filter(c => !(c.items?.length > 0 && c.items.every(i => i.status === "Posted") && (!c.deadline || c.deadlineStatus === "Posted")) && !(c.collabType === "event" && (!c.items || c.items.length === 0) && (c.endDate || c.startDate) < todayStr)).map(c=>[c.brand.trim().toLowerCase(), c.brand.trim()])).values()].map(brand => {
                   const bp = brandHash(brand);
                   return (
                     <div key={brand} style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 12px", borderRadius:20, background:bp.bg, border:`1px solid ${bp.border}` }}>
