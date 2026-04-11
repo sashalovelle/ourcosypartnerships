@@ -1839,7 +1839,16 @@ export default function CollabCelestia() {
             {/* Brand colour legend */}
             {collabs.length > 0 && (
               <div style={{ display:"flex", gap:10, flexWrap:"wrap", marginBottom:24 }}>
-                {[...new Map(collabs.filter(c => !(c.items?.length > 0 && c.items.every(i => i.status === "Posted") && (!c.deadline || c.deadlineStatus === "Posted")) && !(c.collabType === "event" && (!c.items || c.items.length === 0) && (c.endDate || c.startDate) < todayStr)).map(c=>[c.brand.trim().toLowerCase(), c.brand.trim()])).values()].map(brand => {
+                {(()=>{
+                  const activeCollabs = collabs.filter(c => {
+                    if (c.pending) return true;
+                    if (c.collabType === "event" && (!c.items || c.items.length === 0)) return (c.endDate || c.startDate) >= todayStr;
+                    if (c.collabType === "event") return !c.items.every(i => i.status === "Posted");
+                    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === "Posted" || i.status === "Filmed") && c.deadlineStatus === "Posted") : c.items.every(i => i.status === "Posted"));
+                    return !allDone;
+                  });
+                  return [...new Map(activeCollabs.map(c=>[c.brand.trim().toLowerCase(), c.brand.trim()])).values()];
+                })().map(brand => {
                   const bp = brandHash(brand);
                   return (
                     <div key={brand} style={{ display:"flex", alignItems:"center", gap:7, padding:"5px 12px", borderRadius:20, background:bp.bg, border:`1px solid ${bp.border}` }}>
