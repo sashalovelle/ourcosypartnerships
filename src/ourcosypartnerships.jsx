@@ -2255,6 +2255,14 @@ export default function CollabCelestia() {
             if (d===-1) { payMonth===0 ? (setPayMonth(11), setPayYear(y=>y-1)) : setPayMonth(m=>m-1); }
             else        { payMonth===11 ? (setPayMonth(0), setPayYear(y=>y+1)) : setPayMonth(m=>m+1); }
           }
+          // All outstanding (unpaid/invoiced) across all months
+          const allOutstanding = collabs.filter(c => {
+            if (c.gifted || !c.fee || parseFloat(c.fee) === 0) return false;
+            if (c.collabType === 'event' && (c.gifted || !c.fee || parseFloat(c.fee) === 0)) return false;
+            return c.paymentStatus === 'Unpaid' || c.paymentStatus === 'Invoiced';
+          });
+          const outstandingTotal = allOutstanding.reduce((s,c)=>s+(parseFloat(c.fee)||0),0);
+
           // Filter collabs whose date range overlaps the selected month
           const monthStart = new Date(payYear, payMonth, 1);
           const monthEnd   = new Date(payYear, payMonth+1, 0);
@@ -2291,6 +2299,27 @@ export default function CollabCelestia() {
                   )}
                 </div>
               </div>
+
+              {/* Outstanding banner */}
+              {allOutstanding.length > 0 && (
+                <div style={{ background:"#FDF0E8", border:"1px solid #E8C4A0", borderRadius:18, padding:"16px 20px", marginBottom:20 }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", flexWrap:"wrap", gap:10 }}>
+                    <div>
+                      <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:2, color:"#A06040", marginBottom:4 }}>OUTSTANDING ACROSS ALL MONTHS</div>
+                      <div style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:22, color:"#7A3A18", fontWeight:400 }}>S${outstandingTotal.toLocaleString("en-US",{minimumFractionDigits:2})}</div>
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                      {allOutstanding.map(c => (
+                        <div key={c.id} style={{ display:"flex", gap:10, alignItems:"center" }}>
+                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:"#7A3A18" }}>{c.brand}</span>
+                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:10, color:"#A06040", background:"#F0D8C8", borderRadius:10, padding:"1px 8px" }}>{c.paymentStatus}</span>
+                          <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:12, color:"#7A3A18" }}>S${parseFloat(c.fee).toLocaleString("en-US",{minimumFractionDigits:2})}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Summary cards */}
               <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(200px,1fr))", gap:14, marginBottom:36 }}>
@@ -3024,7 +3053,7 @@ export default function CollabCelestia() {
                 ) : (()=>{
                   const totalNeeded=form.deliverables.filter(d=>d.count>0).reduce((s,d)=>s+d.count,0);
                   const totalAssigned=Object.values(manualSchedule).reduce((s,dayMap)=>s+Object.values(dayMap).reduce((a,b)=>a+b,0),0);
-                  const ready=form.brand&&(formType==="event"?true:totalAssigned>0);
+                  const ready=form.brand&&(formType==="event"?true:scheduleMode==="pending"?true:totalAssigned>0);
                   return (
                     <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
                       {totalNeeded>0&&totalAssigned<totalNeeded&&(
