@@ -391,15 +391,21 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
 
   const todayStr2 = new Date().toISOString().split('T')[0];
   const active   = collabs.filter(c => {
-    if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
-      return (c.endDate || c.startDate) >= todayStr2;
+    if (c.pending) return true;
+    if (c.collabType === 'event') {
+      // Events with no deliverables: archive when date passed
+      if (!c.items || c.items.length === 0) return (c.endDate || c.startDate) >= todayStr2;
+      // Events with deliverables: archive when all posted (same as partnerships)
+      return !c.items.every(i => i.status === 'Posted');
     }
-    if (c.pending) return true; // pending always active
-    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted')); return !allDone;
+    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
+    return !allDone;
   });
   const archived = collabs.filter(c => {
-    if (c.collabType === 'event' && (!c.items || c.items.length === 0)) {
-      return (c.endDate || c.startDate) < todayStr2;
+    if (c.pending) return false;
+    if (c.collabType === 'event') {
+      if (!c.items || c.items.length === 0) return (c.endDate || c.startDate) < todayStr2;
+      return c.items.every(i => i.status === 'Posted');
     }
     return c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
   });
