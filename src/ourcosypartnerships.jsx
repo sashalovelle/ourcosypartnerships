@@ -932,13 +932,21 @@ export default function CollabCelestia() {
     links: { briefLink: "", driveLink: "" },
   });
 
+  const todayStr3 = new Date().toISOString().split('T')[0];
+  const activeCollabIds = new Set(collabs.filter(c => {
+    if (c.pending) return true;
+    if (c.collabType === 'event' && (!c.items || c.items.length === 0)) return (c.endDate || c.startDate) >= todayStr3;
+    if (c.collabType === 'event') return !c.items.every(i => i.status === 'Posted');
+    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
+    return !allDone;
+  }).map(c => c.id));
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
   const dayItems   = (d) => {
-    const baseItems = allItems.filter(i => i.date === d);
+    const baseItems = allItems.filter(i => i.date === d && activeCollabIds.has(i.collabId));
     const extraItems = [];
     // Also include events (no deliverables) that fall on this date
     collabs.forEach(c => {
-      if (c.collabType === 'event') {
+      if (c.collabType === 'event' && activeCollabIds.has(c.id)) {
         const start = c.startDate;
         const end = c.endDate || c.startDate;
         if (d >= start && d <= end) {
@@ -951,7 +959,7 @@ export default function CollabCelestia() {
     });
     // Add deadline chips
     collabs.forEach(c => {
-      if (c.deadline === d) {
+      if (c.deadline === d && activeCollabIds.has(c.id)) {
         extraItems.push({ id: c.id+'-deadline', brand: c.brand, type: 'Deadline', date: d, status: c.deadlineStatus||'Scheduled', collabId: c.id, isDeadlineChip: true });
       }
     });
