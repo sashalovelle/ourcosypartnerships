@@ -405,8 +405,8 @@ function OverviewGrid({ collabs, todayStr, openEdit, duplicateCollab, setConfirm
     if (c.pending) return false;
     if (c.collabType === 'event') {
       if (!c.items || c.items.length === 0) return (c.endDate || c.startDate) < todayStr2;
-      // Events with deliverables archive when all posted
-      const allEventDone = c.items.every(i => i.status === 'Posted') && (!c.deadline || c.deadlineStatus === 'Posted');
+      // Events with deliverables archive when all filmed/posted + deadline posted
+      const allEventDone = c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && (!c.deadline || c.deadlineStatus === 'Posted');
       return allEventDone;
     }
     return c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
@@ -936,8 +936,10 @@ export default function CollabCelestia() {
   const activeCollabIds = new Set(collabs.filter(c => {
     if (c.pending) return true;
     if (c.collabType === 'event' && (!c.items || c.items.length === 0)) return (c.endDate || c.startDate) >= todayStr3;
-    if (c.collabType === 'event') return !c.items.every(i => i.status === 'Posted');
-    const allDone = c.items?.length > 0 && (c.deadline ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted') : c.items.every(i => i.status === 'Posted'));
+    if (c.collabType === 'event') { return !(c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && (!c.deadline || c.deadlineStatus === 'Posted')); }
+    const allDone = c.items?.length > 0 && (c.deadline
+      ? (c.items.every(i => i.status === 'Posted' || i.status === 'Filmed') && c.deadlineStatus === 'Posted')
+      : c.items.every(i => i.status === 'Posted'));
     return !allDone;
   }).map(c => c.id));
   const allItems   = collabs.flatMap(c => (c.items||[]).map(i => ({ ...i, brand: c.brand, collabId: c.id })));
@@ -1922,21 +1924,7 @@ export default function CollabCelestia() {
               </div>
             </div>
 
-            {/* Brand colour legend on calendar */}
-            {collabs.length > 0 && (
-              <div style={{ display:"flex", gap:8, flexWrap:"wrap", marginBottom:16, alignItems:"center" }}>
-                {[...new Map(collabs.map(c=>[c.brand.trim().toLowerCase(), c.brand.trim()])).values()].map(brand => {
-                  const bp = brandHash(brand);
-                  return (
-                    <div key={brand} style={{ display:"flex", alignItems:"center", gap:6, padding:"4px 10px", borderRadius:20, background:bp.bg, border:`1px solid ${bp.border}` }}>
-                      <div style={{ width:8, height:8, borderRadius:"50%", background:bp.dot }}/>
-                      <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:.5, color:bp.text }}>{brand}</span>
-                    </div>
-                  );
-                })}
-                <span style={{ fontFamily:"'Cormorant Garamond', serif", fontSize:9, letterSpacing:.5, color:C.tan, marginLeft:"auto", fontStyle:"italic" }}>✦ drag chips to reschedule</span>
-              </div>
-            )}
+
 
             {/* ── Mobile list view ── */}
             {isMobile && (
